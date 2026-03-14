@@ -110,7 +110,9 @@ else                     ! PLANAR DOMAIN
       theta_s = theta_surf * exp ( nsq_over_g * z )
       exner_s = exner_surf - gravity**2/(Cp * theta_surf * bvf_square)   &
                    * (1.0_r_def - exp ( - nsq_over_g * z ))
-    case( test_isot_cold_atm)
+    case( test_isot_cold_atm, &
+          test_isot_dry_atm )
+      ! Isothermal with constant gravity
       theta_s = theta_surf * exp ( gravity / (theta_surf * cp) * z )
       exner_s = exner_surf * exp ( - gravity / (theta_surf * cp) * z )
     case( test_warm_bubble,    &
