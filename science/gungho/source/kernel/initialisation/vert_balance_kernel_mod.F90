@@ -237,7 +237,7 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
                                    dz(k), wt(k), g_local(k) )
 
       dbalance_dexner = ( balance_plus - balance_minus ) / &
-                        ( 2.0_r_def * exner(map_w3(1)+k) * eps )
+                        ( 2.0_r_def * exner_itn(k+1) * eps )
 
       delta_exner = -balance_zero / dbalance_dexner
 
@@ -255,9 +255,14 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
 
   end do
 
+  exner_top = exp( (1.0_r_def - wt(nlayers)) * log(exner_itn(nlayers-1)) + &
+                   wt(nlayers) * log(exner_itn(nlayers)) )
+
   if ( temp_variable == profile_variable_absolute ) then
-    exner_top = exp( (1.0_r_def - wt(nlayers)) * log(exner_itn(nlayers-1)) + &
-                     wt(nlayers) * log(exner_itn(nlayers)) )
+    do k = 0, nlayers - 1
+      theta(map_wt(1)+k) = temp_specified(map_wt(1)+k) / &
+                           ((1.0_r_def-wt(k))*exner_itn(k)+wt(k)*exner_itn(k+1))
+    end do
     theta(map_wt(2)+nlayers-1) = temp_specified(map_wt(2)+nlayers-1) / exner_top
   end if
   if ( vapour_variable == profile_variable_rh ) then
