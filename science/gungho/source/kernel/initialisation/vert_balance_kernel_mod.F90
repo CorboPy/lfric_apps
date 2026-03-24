@@ -267,6 +267,12 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
   end if
   if ( vapour_variable == profile_variable_rh ) then
     p_top = p_zero * exner_top ** (1.0_r_def / kappa)
+    select case( temp_variable )
+    case( profile_variable_absolute )
+      do k = 0, nlayers - 1
+        mr_v(map_wt(1)+k) = vapour_specified(map_wt(1)+k) * &
+                                    qsaturation( temp_specified(map_wt(1)+k), &
+                                                 0.01_r_def*p_top )
     mr_v(map_wt(2)+nlayers-1) = vapour_specified(map_wt(2)+nlayers-1) * &
                                 qsaturation( temp_specified(map_wt(2)+nlayers-1), &
                                              0.01_r_def*p_top )
