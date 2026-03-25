@@ -10,31 +10,33 @@
 
 module vert_balance_kernel_mod
 
-use argument_mod,               only : arg_type, func_type,       &
-                                       GH_FIELD, GH_REAL,         &
-                                       GH_SCALAR,                 &
-                                       GH_READ, GH_WRITE,         &
-                                       ANY_SPACE_9, GH_BASIS,     &
-                                       ANY_DISCONTINUOUS_SPACE_3, &
-                                       CELL_COLUMN, GH_EVALUATOR
-use constants_mod,              only : r_def, i_def
-use idealised_config_mod,       only : test
-use initial_temperature_config_mod, only: temp_variable => profile_variable, &
-                                          profile_variable_absolute,         &
-                                          profile_variable_potential
-use initial_vapour_config_mod, only: vapour_variable => profile_variable, &
-                                     profile_variable_mr,                 &
-                                     profile_variable_rh
-use kernel_mod,                 only : kernel_type
-use extrusion_config_mod,       only: planet_radius
-use fs_continuity_mod,          only : Wtheta, W3
-use formulation_config_mod,     only : shallow
-use planet_config_mod,          only : gravity, Rd, cp, p_zero, kappa, &
-                                       recip_epsilon
-use physics_common_mod, only : qsaturation
+use argument_mod,           only: arg_type, func_type,       &
+                                  GH_FIELD, GH_REAL,         &
+                                  GH_SCALAR,                 &
+                                  GH_READ, GH_WRITE,         &
+                                  ANY_SPACE_9, GH_BASIS,     &
+                                  ANY_DISCONTINUOUS_SPACE_3, &
+                                  CELL_COLUMN, GH_EVALUATOR
+use constants_mod,          only: r_def, i_def
+use idealised_config_mod,   only: test
+use initial_temperature_config_mod, &
+                            only: temp_variable => profile_variable, &
+                                  profile_variable_absolute,         &
+                                  profile_variable_potential
+use initial_vapour_config_mod, &
+                            only: vapour_variable => profile_variable, &
+                                  profile_variable_mr,                 &
+                                  profile_variable_rh
+use kernel_mod,             only: kernel_type
+use extrusion_config_mod,   only: planet_radius
+use fs_continuity_mod,      only: Wtheta, W3
+use formulation_config_mod, only: shallow
+use planet_config_mod,      only: gravity, Rd, cp, p_zero, kappa, &
+                                  recip_epsilon
+use physics_common_mod,     only: qsaturation
 
-use log_mod,           only: log_event, log_scratch_space,                 &
-                               LOG_LEVEL_INFO, LOG_LEVEL_ERROR
+use log_mod,                only: log_event, log_scratch_space, &
+                                  LOG_LEVEL_INFO, LOG_LEVEL_ERROR
 
 implicit none
 
@@ -150,7 +152,7 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
   integer(kind=i_def), parameter :: nitns = 100_i_def
   real(kind=r_def)    :: balance_plus, balance_minus, balance_zero
   real(kind=r_def)    :: delta_exner, dbalance_dexner
-  real(kind=r_def)    :: exner_top, p_top
+  real(kind=r_def)    :: exner_top, p_top, t_abs_top
   integer(kind=i_def) :: itn
 
   ipanel = int(panel_id(map_pid(1)), i_def)
@@ -255,46 +257,48 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
 
   end do
 
+  ! Ensure that theta and mr_v are consistent with final iterate of exner
+  do k = 0, nlayers - 1
+    balance_zero = calc_balance( exner_itn(k+1), exner_itn(k),          &
+                                 theta(map_wt(1)+k), mr_v(map_wt(1)+k), &
+                                 temp_specified(map_wt(1)+k),           &
+                                 vapour_specified(map_wt(1)+k),         &
+                                 dz(k), wt(k), g_local(k) )
+  end do
+
+  ! Update theta and mr_v at upper boundary, if needed
   exner_top = exp( (1.0_r_def - wt(nlayers)) * log(exner_itn(nlayers-1)) + &
                    wt(nlayers) * log(exner_itn(nlayers)) )
 
-  if ( temp_variable == profile_variable_absolute ) then
-    do k = 0, nlayers - 1
-      theta(map_wt(1)+k) = temp_specified(map_wt(1)+k) / &
-                           ((1.0_r_def-wt(k))*exner_itn(k)+wt(k)*exner_itn(k+1))
-    end do
-    theta(map_wt(2)+nlayers-1) = temp_specified(map_wt(2)+nlayers-1) / exner_top
-  end if
+  select case( temp_variable )
+    case( profile_variable_absolute )
+      t_abs_top = temp_specified(map_wt(2)+nlayers-1)
+      theta(map_wt(2)+nlayers-1) =  t_abs_top / exner_top
+    case( profile_variable_potential )
+      t_abs_top = exner_top * theta(map_wt(2)+nlayers-1)
+  end select
+
   if ( vapour_variable == profile_variable_rh ) then
     p_top = p_zero * exner_top ** (1.0_r_def / kappa)
-    select case( temp_variable )
-    case( profile_variable_absolute )
-      do k = 0, nlayers - 1
-        mr_v(map_wt(1)+k) = vapour_specified(map_wt(1)+k) * &
-                                    qsaturation( temp_specified(map_wt(1)+k), &
-                                                 0.01_r_def*p_top )
     mr_v(map_wt(2)+nlayers-1) = vapour_specified(map_wt(2)+nlayers-1) * &
-                                qsaturation( temp_specified(map_wt(2)+nlayers-1), &
-                                             0.01_r_def*p_top )
+                                qsaturation( t_abs_top, 0.01_r_def * p_top )
   end if
-
 
 end subroutine vert_balance_code
 
 function calc_balance( exner_above, exner_below, theta, mr_v, &
                        temp_specified, vapour_specified, dz, wt, g ) result( balance )
 
-
 implicit none
 
-real( kind=r_def ), intent(in) :: exner_above
-real( kind=r_def ), intent(in) :: exner_below
+real( kind=r_def ), intent(in)    :: exner_above
+real( kind=r_def ), intent(in)    :: exner_below
 real( kind=r_def ), intent(inout) :: theta
 real( kind=r_def ), intent(inout) :: mr_v
-real( kind=r_def ), intent(in) :: temp_specified
-real( kind=r_def ), intent(in) :: vapour_specified
-real( kind=r_def ), intent(in) :: dz, wt, g
-real( kind=r_def )             :: balance
+real( kind=r_def ), intent(in)    :: temp_specified
+real( kind=r_def ), intent(in)    :: vapour_specified
+real( kind=r_def ), intent(in)    :: dz, wt, g
+real( kind=r_def )                :: balance
 
 real( kind=r_def ) :: theta_virtual, exner_theta, temp, p
 
