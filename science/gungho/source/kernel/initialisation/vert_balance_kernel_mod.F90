@@ -258,15 +258,6 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
   end do
 
   ! Ensure that theta and mr_v are consistent with final iterate of exner
-  do k = 0, nlayers - 1
-    balance_zero = calc_balance( exner_itn(k+1), exner_itn(k),          &
-                                 theta(map_wt(1)+k), mr_v(map_wt(1)+k), &
-                                 temp_specified(map_wt(1)+k),           &
-                                 vapour_specified(map_wt(1)+k),         &
-                                 dz(k), wt(k), g_local(k) )
-  end do
-
-  ! Update theta and mr_v at upper boundary, if needed
   exner_top = exp( (1.0_r_def - wt(nlayers)) * log(exner_itn(nlayers-1)) + &
                    wt(nlayers) * log(exner_itn(nlayers)) )
 
@@ -283,6 +274,14 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
     mr_v(map_wt(2)+nlayers-1) = vapour_specified(map_wt(2)+nlayers-1) * &
                                 qsaturation( t_abs_top, 0.01_r_def * p_top )
   end if
+
+  do k = 0, nlayers - 1
+    balance_zero = calc_balance( exner_itn(k+1), exner_itn(k),          &
+                                 theta(map_wt(1)+k), mr_v(map_wt(1)+k), &
+                                 temp_specified(map_wt(1)+k),           &
+                                 vapour_specified(map_wt(1)+k),         &
+                                 dz(k), wt(k), g_local(k) )
+  end do
 
 end subroutine vert_balance_code
 
