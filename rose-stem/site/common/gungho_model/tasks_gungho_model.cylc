@@ -605,8 +605,21 @@
         "tsteps": 90,
         "wallclock": 5,
         "kgo_checks": ["checksum"],
-        "plot_str": "profile_plot.py $NODAL_DATA_DIR/lfric_diag.nc theta:m_v:exner:w_in_wth linear 200 900 $PLOT_DIR",
+        "plot_str": "profile_plot.py $NODAL_DATA_DIR/lfric_initial.nc theta:m_v:exner:t_abs:rh linear 200 900 $PLOT_DIR",
     }) %}
+
+{% elif task_ns.conf_name == "rh_init-BiP4x4-600x400" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["rh_init"],
+        "resolution": "BiP4x4-600x400",
+        "DT": 60,
+        "tsteps": 90,
+        "wallclock": 5,
+        "kgo_checks": ["checksum"],
+        "plot_str": "profile_plot.py $NODAL_DATA_DIR/lfric_initial.nc theta:m_v:exner:t_abs:rh linear 40 20 $PLOT_DIR",
+    }) %}
+
 {% elif task_ns.conf_name == "canned" %}
 
     {% do task_dict.update({

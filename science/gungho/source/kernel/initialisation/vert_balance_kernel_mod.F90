@@ -324,7 +324,6 @@ theta_virtual = ( 1.0_r_def + recip_epsilon * mr_v ) * theta / (1.0_r_def + mr_v
 
 balance = g + cp * theta_virtual * ( exner_above - exner_below ) / dz
 
-
 end function calc_balance
 
 end module vert_balance_kernel_mod
