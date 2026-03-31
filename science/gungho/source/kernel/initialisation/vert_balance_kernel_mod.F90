@@ -6,7 +6,8 @@
 !
 !-------------------------------------------------------------------------------
 
-!> @brief Computes vertical balance
+!> @brief Computes vertical balance for simultaneous initialisation of
+!>        temperature and vapour profiles
 
 module vert_balance_kernel_mod
 
@@ -102,15 +103,15 @@ contains
 !> @param[in] ndf_pid  Number of degrees of freedom per cell for panel_id
 !> @param[in] undf_pid Number of unique degrees of freedom for panel_id
 !> @param[in] map_pid  Dofmap for the cell at the base of the column for panel_id
-subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
+subroutine vert_balance_code( nlayers, theta, mr_v, exner,      &
                               temp_specified, vapour_specified, &
-                              height_wt, height_w3,          &
-                              chi_1, chi_2, chi_3, panel_id, &
-                              ndf_wt, undf_wt, map_wt,       &
-                              ndf_w3, undf_w3, map_w3,       &
-                              ndf_chi, undf_chi, map_chi,    &
-                              basis_chi_on_wt,               &
-                              ndf_pid, undf_pid, map_pid     )
+                              height_wt, height_w3,             &
+                              chi_1, chi_2, chi_3, panel_id,    &
+                              ndf_wt, undf_wt, map_wt,          &
+                              ndf_w3, undf_w3, map_w3,          &
+                              ndf_chi, undf_chi, map_chi,       &
+                              basis_chi_on_wt,                  &
+                              ndf_pid, undf_pid, map_pid )
 
   use analytic_pressure_profiles_mod, only : analytic_pressure
   use sci_chi_transform_mod,          only : chi2xyz
@@ -148,12 +149,14 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
   real(kind=r_def), dimension(ndf_chi) :: chi_1_e, chi_2_e, chi_3_e
 
   real(kind=r_def),    parameter :: eps = 1.0e-5_r_def
-  real(kind=r_def),    parameter :: tol = 1.0e-14_r_def
   integer(kind=i_def), parameter :: nitns = 100_i_def
+  real(kind=r_def)    :: tol
   real(kind=r_def)    :: balance_plus, balance_minus, balance_zero
   real(kind=r_def)    :: delta_exner, dbalance_dexner
   real(kind=r_def)    :: exner_top, p_top, t_abs_top
   integer(kind=i_def) :: itn
+
+  tol = 8.0_r_def * spacing(1.0_r_def)
 
   ipanel = int(panel_id(map_pid(1)), i_def)
 
@@ -214,6 +217,9 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
                                       (cp * temp_specified(map_wt(1)+k))
     end do
     exner_itn(:) = exp(exner_itn(:))
+  case default
+    call log_event( 'Unknown profile variable in initial_temperature namelist.', &
+                    LOG_LEVEL_ERROR)
   end select
 
   do k = 0, nlayers - 1
@@ -248,7 +254,7 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,   &
       if ( abs( delta_exner ) <= tol ) goto 10
     end do
 
-    write(log_scratch_space,'(''Itn fail at k = '', i0)') k
+    write(log_scratch_space,'(''Itn fail in vetr_balance at k = '', i0)') k
     call log_event(log_scratch_space, LOG_LEVEL_ERROR)
 
 10  continue
@@ -318,6 +324,9 @@ select case( vapour_variable )
   case( profile_variable_rh )
     p = p_zero * exner_theta ** (1.0_r_def / kappa)
     mr_v = vapour_specified * qsaturation(temp, 0.01_r_def*p)
+  case default
+    call log_event( 'Unknown profile_variable in initial_vapour namelist.', &
+                    LOG_LEVEL_ERROR )
 end select
 
 theta_virtual = ( 1.0_r_def + recip_epsilon * mr_v ) * theta / (1.0_r_def + mr_v )
