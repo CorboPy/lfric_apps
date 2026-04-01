@@ -34,7 +34,6 @@ contains
                                           feign_finite_element_config,      &
                                           feign_idealised_config,           &
                                           feign_initial_density_config,     &
-                                          feign_initial_temperature_config, &
                                           feign_planet_config
     use idealised_config_mod,      only : test_gravity_wave
 
