@@ -40,16 +40,22 @@ contains
     real(kind=r_def),  parameter :: qsa2 = -17.2693882_r_def ! Constant in qsat equation in Kelvin
     real(kind=r_def),  parameter :: qsa3 = 35.86_r_def      ! Constant in qsat equation
     real(kind=r_def),  parameter :: qsa4 = 6.109_r_def       ! Constant in qsat equation in mbar
+    real(kind=r_def), parameter :: small = 1.0e-6_r_def      ! Prevent division by very small numbers when p ~ es
 
     if (T > qsa3) then
       es = qsa4 * exp(-qsa2 * (T - tk0c) / (T-qsa3))
+
       if (p > es) then
-        qs = epsilon * es / (p - es)
+        qs = epsilon * es / max(p - es, small) 
       else
-        qs = 999.0_r_def
+        ! Pressure below saturation vapour pressure
+        call log_event("qsaturation: p <= es", LOG_LEVEL_ERROR)
+        qs = 0.0_r_def
       end if
     else
-      qs =999.0_r_def
+      ! Invalid temperature for Tetens
+      call log_event("qsaturation: T <= qsa3", LOG_LEVEL_ERROR)
+      qs = 0.0_r_def
     end if
   end function qsaturation
 
