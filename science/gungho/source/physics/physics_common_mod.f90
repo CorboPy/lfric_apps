@@ -14,8 +14,10 @@
 
 module physics_common_mod
 
-  use constants_mod,                 only: r_def
-  use planet_config_mod,             only: epsilon
+  use constants_mod,                only: r_def
+  use planet_config_mod,            only: epsilon
+  use log_mod,                      only: log_event, log_scratch_space, &
+                                        LOG_LEVEL_INFO, LOG_LEVEL_ERROR
   implicit none
   private
 
