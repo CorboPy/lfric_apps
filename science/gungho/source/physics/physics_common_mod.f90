@@ -17,7 +17,7 @@ module physics_common_mod
   use constants_mod,                only: r_def
   use planet_config_mod,            only: epsilon
   use log_mod,                      only: log_event, log_scratch_space, &
-                                        LOG_LEVEL_INFO, LOG_LEVEL_ERROR
+                                        LOG_LEVEL_INFO, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING
   implicit none
   private
 
@@ -51,13 +51,13 @@ contains
         qs = epsilon * es / max(p - es, small) 
       else
         ! Pressure below saturation vapour pressure
-        call log_event("qsaturation: p <= es", LOG_LEVEL_ERROR)
-        qs = 0.0_r_def
+        call log_event("qsaturation: p <= es", LOG_LEVEL_WARNING)
+        qs = 999.0_r_def
       end if
     else
       ! Invalid temperature for Tetens
-      call log_event("qsaturation: T <= qsa3", LOG_LEVEL_ERROR)
-      qs = 0.0_r_def
+      call log_event("qsaturation: T <= qsa3", LOG_LEVEL_WARNING)
+      qs = 999.0_r_def
     end if
   end function qsaturation
 
