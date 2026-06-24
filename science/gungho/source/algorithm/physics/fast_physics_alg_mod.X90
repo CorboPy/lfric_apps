@@ -55,7 +55,7 @@ module fast_physics_alg_mod
                             only: clone_bundle
   use field_collection_mod, only: field_collection_type
   ! Moisture species
-  use mr_indices_mod,       only: nummr, imr_v, imr_cl
+  use mr_indices_mod,       only: nummr, imr_v, imr_cl, imr_r
   use sci_enforce_lower_bound_kernel_mod, &
                             only: enforce_lower_bound_kernel_type
   use moisture_conservation_alg_mod, &
@@ -355,7 +355,8 @@ contains
       end if
       call invoke( evap_condense_kernel_type(dtheta_cld, theta,                &
                                              dmr_cld(imr_v), dmr_cld(imr_cl),  &
-                                             mr(imr_v), mr(imr_cl),            &
+                                             dmr_cld(imr_r),                   &
+                                             mr(imr_v), mr(imr_cl), mr(imr_r), &
                                              exner_in_wth,                     &
                                              Rd, Rv, cp, cpv, cl, p_zero) )
       evap_condense_done = .true.
@@ -398,9 +399,10 @@ contains
     call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                                printmax=20.0_r_def, name='dtheta fast')
     if (evap_condense_done) then
-      call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),     &
-                  inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)), &
-                  inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)))
+      call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),      &
+                  inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)),  &
+                  inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
+                  inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  &
     end if
     if ( use_moisture ) then
       do i_mr = 1, nummr
