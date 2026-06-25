@@ -19,7 +19,7 @@ module evap_condense_kernel_mod
   use argument_mod,                only: arg_type, GH_SCALAR,         &
                                          GH_FIELD, GH_WRITE, GH_READ, &
                                          DOF, GH_REAL
-  use constants_mod,               only: r_def, i_def
+  use constants_mod,               only: r_def, i_def, r_second
   use driver_water_constants_mod,  only: Lv0 => latent_heat_h2o_condensation
   use fs_continuity_mod,           only: Wtheta
   use kernel_mod,                  only: kernel_type
@@ -35,23 +35,24 @@ module evap_condense_kernel_mod
   type, public, extends(kernel_type) :: evap_condense_kernel_type
     private
     type(arg_type) :: meta_args(15) = (/                                       &
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        &
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 &
-        arg_type(GH_SCALAR, GH_REAL, GH_READ)                                  &
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! theta_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! theta_n    
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_v_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_cl_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_r_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_v_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_cl_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_r_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! exner_at_wt
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rd
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rv
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cpd
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cpv
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cl
+        arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! p_zero
+        arg_type(GH_SCALAR, GH_REAL, GH_READ)                                  & ! dt
     /)
-    integer :: operates_on = DOF
+    integer :: operates_on = CELL_COLUMN
 
   contains
       procedure, nopass :: evap_condense_code
@@ -65,6 +66,7 @@ module evap_condense_kernel_mod
 contains
 
   !> @brief Performs a simple condensation/evaporation scheme with latent heating
+  !> @param[in]     nlayers      Integer the number of layers
   !> @param[in,out] theta_inc    Potential temperature increment
   !> @param[in]     theta_n      Potential temperature input
   !> @param[in,out] mr_v_inc     Water vapour mixing ratio increment
@@ -80,24 +82,45 @@ contains
   !> @param[in]     cpv          Heat capacity of water vap at constant pressure
   !> @param[in]     cl           Heat capacity of liquid water
   !> @param[in]     p_zero       Reference pressure
-  subroutine evap_condense_code( theta_inc, theta_n,                           &
-                                 mr_v_inc, mr_cl_inc, mr_r_inc,                &
-                                 mr_v_n, mr_cl_n, mr_r_n,                      &
+  !> @param[in]     dt           The model timestep length
+  !> @param[in]     ndf_wtheta    The number of degrees of freedom per cell for wtheta
+  !! @param[in]     udf_wtheta    The number of total degrees of freedom for wtheta
+  !> @param[in]     map_wtheta    Integer array holding the dofmap for the cell at the base of the column
+                 
+  subroutine evap_condense_code( nlayers,                                      &
+                                 theta_inc,                                    &
+                                 theta_n,                                      &
+                                 mr_v_inc,                                     &
+                                 mr_cl_inc,                                    &
+                                 mr_r_inc,                                     &
+                                 mr_v_n,                                       & 
+                                 mr_cl_n,                                      &
+                                 mr_r_n,                                       &
                                  exner_at_wt,                                  &
-                                 Rd, Rv, cpd, cpv, cl, p_zero )
+                                 Rd,                                           &
+                                 Rv,                                           &
+                                 cpd,                                          &
+                                 cpv,                                          &
+                                 cl,                                           &
+                                 p_zero,                                       &
+                                 dt,                                           &
+                                 ndf_wtheta, undf_wtheta, map_wtheta )
 
     implicit none
 
     ! Arguments
-    real(kind=r_def), intent(inout) :: theta_inc
-    real(kind=r_def), intent(in)    :: theta_n
-    real(kind=r_def), intent(in)    :: exner_at_wt
-    real(kind=r_def), intent(inout) :: mr_v_inc, mr_cl_inc, mr_r_inc
-    real(kind=r_def), intent(in)    :: mr_v_n, mr_cl_n, mr_r_n
-    real(kind=r_def), intent(in)    :: Rd, Rv, cpd, cpv, cl, p_zero
+    integer(kind=i_def), intent(in)                           :: nlayers, ndf_wtheta, undf_wtheta
+    real(kind=r_def), dimension(undf_wtheta), intent(inout)   :: theta_inc
+    real(kind=r_def), dimension(undf_wtheta), intent(in)      :: theta_n
+    real(kind=r_def), dimension(undf_wtheta), intent(in)      :: exner_at_wt
+    real(kind=r_def), dimension(undf_wtheta), intent(inout)   :: mr_v_inc, mr_cl_inc, mr_r_inc
+    real(kind=r_def), dimension(undf_wtheta), intent(in)      :: mr_v_n, mr_cl_n, mr_r_n
+    real(kind=r_def), intent(in)                              :: Rd, Rv, cpd, cpv, cl, p_zero
+    real(kind=r_second), intent(in)                           :: dt
+    integer(kind=i_def), dimension(ndf_wtheta), intent(in)    :: map_wtheta
 
     ! Internal variables
-    real(kind=r_def) :: theta_np1, mr_v_np1, mr_cl_np1, mr_r_np1
+    real(kind=r_def), dimension(undf_wtheta) :: theta_np1, mr_v_np1, mr_cl_np1, mr_r_np1
     real(kind=r_def) :: cvd, cvv, kappa
     real(kind=r_def) :: mr_sat, dm_v, Lv, Rm, cpm, cvm
     real(kind=r_def) :: temperature, pressure
@@ -145,7 +168,18 @@ contains
     !     then split remaining condensate between cloud and rain.
     !   - If dm_v < 0: evaporation. Evaporate first from cloud, then from rain.
     !---------------------------------------------------------------------------
-    ! Below this, ToDo
+    ! Below this, ToDo!
+
+    if (dm_v > 0.0_r_def) then
+        ! Condensation: Add everything to cloud at first
+        mr_cl_np1 = mr_cl_n + dm_v
+        mr_r_np1  = mr_r_n
+
+
+    ! REST OF SCHEME HERE
+
+
+    ! The rest below this is from the original saturation adjustment scheme
 
     ! Update fields
     mr_v_np1 = mr_v_n - dm_v

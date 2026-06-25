@@ -358,7 +358,7 @@ contains
                                              dmr_cld(imr_r),                   &
                                              mr(imr_v), mr(imr_cl), mr(imr_r), &
                                              exner_in_wth,                     &
-                                             Rd, Rv, cp, cpv, cl, p_zero) )
+                                             Rd, Rv, cp, cpv, cl, p_zero, dt) )
       evap_condense_done = .true.
     end if
 
