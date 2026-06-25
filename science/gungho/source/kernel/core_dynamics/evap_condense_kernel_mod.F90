@@ -44,6 +44,7 @@ module evap_condense_kernel_mod
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_cl_n
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_r_n
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! exner_at_wt
+        arg_type(GH_FIELD, GH_REAL, GH_READ,   WTHETA),                        & ! dz_wtheta      !> ToDo: pass through fast_physics_alg
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rd
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rv
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cpd
@@ -76,6 +77,7 @@ contains
   !> @param[in]     mr_cl_n      Liquid cloud mixing ratio input
   !> @param[in]     mr_r_n       Rain liquid mixing ratio input
   !> @param[in]     exner_at_wt  Exner pressure at Wtheta points
+  !> @param[in]     dz_wtheta    Vertical spacing at Wtheta points
   !> @param[in]     Rd           Gas constant for dry air
   !> @param[in]     Rv           Gas constant for water vapour
   !> @param[in]     cpd          Heat capacity of dry air at constant pressure
@@ -97,6 +99,7 @@ contains
                                  mr_cl_n,                                      &
                                  mr_r_n,                                       &
                                  exner_at_wt,                                  &
+                                 dz_wtheta,                                    &
                                  Rd,                                           &
                                  Rv,                                           &
                                  cpd,                                          &
@@ -117,50 +120,66 @@ contains
     real(kind=r_def), dimension(undf_wtheta), intent(in)      :: mr_v_n, mr_cl_n, mr_r_n
     real(kind=r_def), intent(in)                              :: Rd, Rv, cpd, cpv, cl, p_zero
     real(kind=r_second), intent(in)                           :: dt
+    real(kind=r_def), dimension(undf_wtheta), intent(in)      :: dz_wtheta
     integer(kind=i_def), dimension(ndf_wtheta), intent(in)    :: map_wtheta
 
     ! Internal variables
     real(kind=r_def), dimension(undf_wtheta) :: theta_np1, mr_v_np1, mr_cl_np1, mr_r_np1
+    real(kind=r_def),                        :: mr_sat(0:nlayers-1), dm_v(0:nlayers-1)
+    real(kind=r_def)                         :: temperature(0:nlayers-1), pressure(0:nlayers-1)
+    real(kind=r_def),                        :: Lv(0:nlayers-1), Rm(0:nlayers-1), cpm(0:nlayers-1), cvm(0:nlayers-1)
     real(kind=r_def) :: cvd, cvv, kappa
-    real(kind=r_def) :: mr_sat, dm_v, Lv, Rm, cpm, cvm
-    real(kind=r_def) :: temperature, pressure
     real(kind=r_def), parameter :: ref_temperature = 273.15_r_def
     real(kind=r_def), parameter :: cl_threshold = 0.001_r_def      ! cloud threshold
-    real(kind=r_def), parameter :: precip_efficiency = 0.5_r_def   ! fraction of excess condensate to rain
+    real(kind=i_def) :: k
 
     ! Convert to temperature and pressure
     kappa = cpd / Rd
-    pressure = p_zero * exner_at_wt ** (1.0_r_def/kappa)
-    temperature = theta_n * exner_at_wt
+    do k = 0, nlayers
+      temperature(k) = theta_n(map_wtheta(1) + k) * exner_at_wt(map_wtheta(1) + k)
+      pressure(k) = p_zero * exner_at_wt(map_wtheta(1) + k) ** (1.0_r_def/kappa)
+    end do
+    ! Internal variables don't need map_wtheta as they are only used within the column and not written back to the global field
 
     ! Thermodynamic quantities
-    kappa = Rd / cpd
-    cvd = cpd - Rd
-    cvv = cpv - Rv
-    cpm = cpd + mr_v_n * cpv + (mr_cl_n + mr_r_n) * cl 
-    cvm = cvd + mr_v_n * cvv + (mr_cl_n + mr_r_n) * cl
-    Rm = Rd + mr_v_n * Rv
-    Lv = Lv0 - (cl - cpv)*(temperature - ref_temperature)
+    kappa = Rd / cpd ! float
+    cvd = cpd - Rd   ! float
+    cvv = cpv - Rv   ! float
+    do k = 0, nlayers
+      cpm(k) = cpd + mr_v_n(map_wtheta(1) + k) * cpv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl    
+      cvm(k) = cvd + mr_v_n(map_wtheta(1) + k) * cvv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl    
+      Rm(k) = Rd + mr_v_n(map_wtheta(1) + k) * Rv                                    
+      Lv(k) = Lv0 - (cl - cpv)*(temperature(k) - ref_temperature) 
+    end do
+    !!> ToDo: break up the above into multiple lines  
 
-    ! This function takes pressure in mbar so divide by 100
-    mr_sat = qsaturation(temperature, 0.01_r_def*pressure)
+    ! Calculate saturation mixing ratio for column
+    do k = 0, nlayers
+      ! This function takes pressure in mbar so divide by 100
+      mr_sat(k) = qsaturation(temperature(k), 0.01_r_def*pressure(k))
+    end do
 
     !---------------------------------------------------------------------------
     ! Saturation adjustment: compute net vapour change dm_v
     !   dm_v > 0 : condensation (vapour -> condensate)
     !   dm_v < 0 : evaporation (condensate -> vapour)
     !---------------------------------------------------------------------------
-    dm_v = (mr_v_n - mr_sat) /                                                 &
-            (1.0_r_def + (mr_sat * Lv ** 2.0_r_def) /                          &
-                          (cpd * Rv * temperature ** 2.0_r_def))
+    do k = 0, nlayers
+      dm_v(k) = (mr_v_n(k) - mr_sat(k)) /                                      &
+              (1.0_r_def + (mr_sat(k) * Lv(k) ** 2.0_r_def) /                  &
+                            (cpd * Rv * temperature(k) ** 2.0_r_def))
+    end do
+    ! dm_v represents the change in water vapour mixing ratio due to condensation/evaporation for the column
 
-    ! Clip to prevent evaporating more condensate than available
-    if (dm_v < 0.0_r_def) then
-      dm_v = max(dm_v, -(mr_cl_n + mr_r_n))
-    end if
+    ! Clip to prevent evaporating more condensate than available 
+    do k = 0, nlayers
+      if (dm_v(k) < 0.0_r_def) then
+        dm_v(k) = max(dm_v(k), -(mr_cl_n(k) + mr_r_n(k)))
+      end if
+    end do
 
     ! Provisional vapour after phase change
-    mr_v_np1 = mr_v_n - dm_v
+    mr_v_np1 = mr_v_n - dm_v ! not sure if this syntax is correct
 
     !---------------------------------------------------------------------------
     ! Rotunno & Emanuel–style partitioning of condensate:
@@ -168,15 +187,32 @@ contains
     !     then split remaining condensate between cloud and rain.
     !   - If dm_v < 0: evaporation. Evaporate first from cloud, then from rain.
     !---------------------------------------------------------------------------
-    ! Below this, ToDo!
+    do k = 0, nlayers
+      ! Condensation: Add to cloud liquid first
+      ! Evaporation: Remove from cloud first, (then from rain, because raindrops are much larger than cloud droplets)
+      mr_cl_np1(map_wtheta(1) + k) = mr_cl_n(map_wtheta(1) + k) + dm_v(k) ! cloud liquid cell update = previous cloud + condensation/evaporation
+      !mr_r_np1(map_wtheta(1) + k)  = mr_r_n(map_wtheta(1) + k)            ! rain liquid cell update = previous rain (updated later)
 
-    if (dm_v > 0.0_r_def) then
-        ! Condensation: Add everything to cloud at first
-        mr_cl_np1 = mr_cl_n + dm_v
-        mr_r_np1  = mr_r_n
+      if (dm_v(k) > 0.0_r_def) then     ! Condensation
 
+        ! If cloud liquid exceeds threshold, it is immediately converted into rain liquid
+        if (mr_cl_np1(map_wtheta(1) + k) > cl_threshold) then
+          mr_r_np1(map_wtheta(1) + k)  = mr_r_n(map_wtheta(1) + k) + (mr_cl_np1(map_wtheta(1) + k) - cl_threshold) ! rain update = previous rain + excess cloud
+          mr_cl_np1(map_wtheta(1) + k) = cl_threshold ! cloud update = capped at threshold
+        end if
+      
+      else                              ! Evaporation
 
-    ! REST OF SCHEME HERE
+        ! Once cloud liquid is depleted, remove from rain liquid
+        if (mr_cl_np1(map_wtheta(1) + k) < 0.0_r_def) then
+          mr_r_np1(map_wtheta(1) + k)  = mr_r_n(map_wtheta(1) + k) + mr_cl_np1(map_wtheta(1) + k) ! rain update = previous rain + excess cloud (negative)
+          mr_cl_np1(map_wtheta(1) + k) = 0.0_r_def ! cloud update = capped at zero (it has been fully evaporated)
+          ! dm_v cannot evaporate more than the total condensate available, so mr_r_np1 *should* not go negative
+        end if
+      end if
+    end do
+
+    ! REST OF SCHEME HERE (theta adjustment, downward advection of rain)
 
 
     ! The rest below this is from the original saturation adjustment scheme
@@ -189,7 +225,7 @@ contains
         - (Rv / cvm) * (1 - ((Rd * cpm) / (cpd * Rm))))                        &
     )
 
-    ! Compute final increments
+    ! Compute final increments !> ToDo PROBABLY INCORRECT AT THE MOMENT!
     theta_inc = theta_np1 - theta_n
     mr_v_inc = - dm_v
     mr_cl_inc = mr_cl_np1 - mr_cl_n
