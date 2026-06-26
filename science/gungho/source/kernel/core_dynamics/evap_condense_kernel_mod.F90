@@ -44,7 +44,7 @@ module evap_condense_kernel_mod
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_cl_n
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_r_n
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! exner_at_wt
-        arg_type(GH_FIELD, GH_REAL, GH_READ,   WTHETA),                        & ! dz_wtheta      !> ToDo: pass through fast_physics_alg
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! dz_wtheta      !> ToDo: pass through fast_physics_alg
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rd
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rv
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cpd
@@ -86,7 +86,7 @@ contains
   !> @param[in]     p_zero       Reference pressure
   !> @param[in]     dt           The model timestep length
   !> @param[in]     ndf_wtheta    The number of degrees of freedom per cell for wtheta
-  !! @param[in]     udf_wtheta    The number of total degrees of freedom for wtheta
+  !> @param[in]     udf_wtheta    The number of total degrees of freedom for wtheta
   !> @param[in]     map_wtheta    Integer array holding the dofmap for the cell at the base of the column
                  
   subroutine evap_condense_code( nlayers,                                      &
@@ -146,10 +146,10 @@ contains
     cvd = cpd - Rd   ! float
     cvv = cpv - Rv   ! float
     do k = 0, nlayers
-      cpm(k) = cpd + mr_v_n(map_wtheta(1) + k) * cpv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl    
-      cvm(k) = cvd + mr_v_n(map_wtheta(1) + k) * cvv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl    
-      Rm(k) = Rd + mr_v_n(map_wtheta(1) + k) * Rv                                    
-      Lv(k) = Lv0 - (cl - cpv)*(temperature(k) - ref_temperature) 
+      cpm(k) = cpd + mr_v_n(map_wtheta(1) + k) * cpv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl     ! should I move this to theta adjustment? (after the updates to mr_v, mr_cl, mr_r)
+      cvm(k) = cvd + mr_v_n(map_wtheta(1) + k) * cvv + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl     ! should I move this to theta adjustment? (after the updates to mr_v, mr_cl, mr_r)
+      Rm(k) = Rd + mr_v_n(map_wtheta(1) + k) * Rv                                                                        ! should I move this to theta adjustment? (after the updates to mr_v, mr_cl, mr_r)
+      Lv(k) = Lv0 - (cl - cpv)*(temperature(k) - ref_temperature)                                                        ! This is used to calculate dm_v
     end do
     !!> ToDo: break up the above into multiple lines  
 
@@ -160,12 +160,12 @@ contains
     end do
 
     !---------------------------------------------------------------------------
-    ! Saturation adjustment: compute net vapour change dm_v
-    !   dm_v > 0 : condensation (vapour -> condensate)
-    !   dm_v < 0 : evaporation (condensate -> vapour)
+    ! Compute net vapour change dm_v
+    !   dm_v < 0 : condensation (vapour -> condensate) — we lose vapour
+    !   dm_v > 0 : evaporation (condensate -> vapour) — we gain vapour
     !---------------------------------------------------------------------------
     do k = 0, nlayers
-      dm_v(k) = (mr_v_n(k) - mr_sat(k)) /                                      &
+      dm_v(k) = - (mr_v_n(map_wtheta(1) + k) - mr_sat(k)) /                      &
               (1.0_r_def + (mr_sat(k) * Lv(k) ** 2.0_r_def) /                  &
                             (cpd * Rv * temperature(k) ** 2.0_r_def))
     end do
@@ -173,27 +173,37 @@ contains
 
     ! Clip to prevent evaporating more condensate than available 
     do k = 0, nlayers
-      if (dm_v(k) < 0.0_r_def) then
-        dm_v(k) = max(dm_v(k), -(mr_cl_n(k) + mr_r_n(k)))
+      if (dm_v(k) > 0.0_r_def) then                                                       ! if evaporation is happening 
+        dm_v(k) = min(dm_v(k), mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k))    ! Limit dm_v gain to the total condensate available (cloud + rain)
       end if
     end do
 
     ! Provisional vapour after phase change
-    mr_v_np1 = mr_v_n - dm_v ! not sure if this syntax is correct
+    do k = 0, nlayers
+      mr_v_np1(map_wtheta(1) + k) = mr_v_n(map_wtheta(1) + k) + dm_v(k)
+    end do
 
     !---------------------------------------------------------------------------
-    ! Rotunno & Emanuel–style partitioning of condensate:
-    !   - If dm_v > 0: condensation. First fill cloud up to a threshold,
-    !     then split remaining condensate between cloud and rain.
-    !   - If dm_v < 0: evaporation. Evaporate first from cloud, then from rain.
+    ! Rotunno & Emanuel–style partitioning of condensate
+    !
+    !   - If dm_v < 0: condensation (vapour -> condensate) — we gain condensate. 
+    !       First fill cloud up to a threshold, then split remaining condensate 
+    !       between cloud and rain according to cl_threshold.
+    !
+    !   - If dm_v > 0: evaporation (condensate -> vapour) — we lose condensate. 
+    !       Evaporate first from cloud, then from rain.
+    !       This is a simple approach to account for the fact that raindrops are
+    !       much larger than cloud droplets, and thus more likely to evaporate.
+    !       A more comprehensive timescale-based approach could be implemented 
+    !       in the future.
     !---------------------------------------------------------------------------
     do k = 0, nlayers
       ! Condensation: Add to cloud liquid first
       ! Evaporation: Remove from cloud first, (then from rain, because raindrops are much larger than cloud droplets)
-      mr_cl_np1(map_wtheta(1) + k) = mr_cl_n(map_wtheta(1) + k) + dm_v(k) ! cloud liquid cell update = previous cloud + condensation/evaporation
+      mr_cl_np1(map_wtheta(1) + k) = mr_cl_n(map_wtheta(1) + k) - dm_v(k)  ! cloud liquid cell update = previous cloud +/- condensation/evaporation. If dm_v < 0, cloud increases.
       !mr_r_np1(map_wtheta(1) + k)  = mr_r_n(map_wtheta(1) + k)            ! rain liquid cell update = previous rain (updated later)
 
-      if (dm_v(k) > 0.0_r_def) then     ! Condensation
+      if (dm_v(k) < 0.0_r_def) then     ! Condensation
 
         ! If cloud liquid exceeds threshold, it is immediately converted into rain liquid
         if (mr_cl_np1(map_wtheta(1) + k) > cl_threshold) then
@@ -211,8 +221,9 @@ contains
         end if
       end if
     end do
+    ! for the above: do I need a check for dm_v(k) = 0.0_r_def? (no condensation/evaporation, so no change to cloud/rain)
 
-    ! REST OF SCHEME HERE (theta adjustment, downward advection of rain)
+    ! REST OF SCHEME HERE (theta adjustment, ...then downward advection of rain?)
 
 
     ! The rest below this is from the original saturation adjustment scheme
@@ -225,7 +236,7 @@ contains
         - (Rv / cvm) * (1 - ((Rd * cpm) / (cpd * Rm))))                        &
     )
 
-    ! Compute final increments !> ToDo PROBABLY INCORRECT AT THE MOMENT!
+    ! Compute final increments !> ToDo PROBABLY INCORRECT AT THE MOMENT! - dm_v is wrong. It should be + dm_v
     theta_inc = theta_np1 - theta_n
     mr_v_inc = - dm_v
     mr_cl_inc = mr_cl_np1 - mr_cl_n
