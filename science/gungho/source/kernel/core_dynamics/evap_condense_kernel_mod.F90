@@ -37,7 +37,7 @@ module evap_condense_kernel_mod
   !> The type declaration for the kernel. Contains the metadata needed by the Psy layer
   type, public, extends(kernel_type) :: evap_condense_kernel_type
     private
-    type(arg_type) :: meta_args(15) = (/                                       &
+    type(arg_type) :: meta_args(17) = (/                                       &
         arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! theta_inc
         arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! theta_n    
         arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_v_inc
