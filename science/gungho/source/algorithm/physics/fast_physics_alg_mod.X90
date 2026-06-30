@@ -408,7 +408,7 @@ contains
       call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),      &
                   inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)),  &
                   inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
-                  inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  &
+                  inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  
     end if
     if ( use_moisture ) then
       do i_mr = 1, nummr
