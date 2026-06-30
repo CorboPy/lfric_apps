@@ -358,13 +358,11 @@ contains
         cpv = 0.0_r_def
         cl = 0.0_r_def
       end if
-      call invoke( evap_condense_kernel_type(dtheta_cld, theta,                &
-                                             dmr_cld(imr_v), dmr_cld(imr_cl),  &
-                                             dmr_cld(imr_r),                   &
-                                             mr(imr_v), mr(imr_cl), mr(imr_r), &
-                                             exner_in_wth,                     &
-                                             dz_in_wth,                        &
-                                             Rd, Rv, cp, cpv, cl, p_zero, dt) )
+      call invoke( evap_condense_kernel_type( dtheta_cld, theta, &
+                          dmr_cld(imr_v), dmr_cld(imr_cl), dmr_cld(imr_r), &
+                          mr(imr_v), mr(imr_cl), mr(imr_r), &
+                          exner_in_wth, dz_in_wth, &
+                          Rd, Rv, cp, cpv, cl, p_zero, dt ) )
       evap_condense_done = .true.
     end if
 
@@ -405,8 +403,8 @@ contains
     call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                                printmax=20.0_r_def, name='dtheta fast')
     if (evap_condense_done) then
-      call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),      &
-                  inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)),  &
+      call invoke(inc_X_plus_Y(dtheta,      dtheta_cld), &
+                  inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)), &
                   inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
                   inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  
     end if
