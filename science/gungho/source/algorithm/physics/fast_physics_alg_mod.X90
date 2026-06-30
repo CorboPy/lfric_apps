@@ -191,6 +191,9 @@ contains
     type( field_type), pointer :: u_star => null()
     type( field_type), pointer :: exner_in_wth => null()
 
+    type( field_type ), pointer :: dz_in_wth           => null()
+    type(mesh_type), pointer :: mesh      => null()
+
     ! Flags to indicate whether scheme has run and increments need adding
     logical(kind=l_def) :: boundary_layer_done, stph_done, blpert_done, &
                            evap_condense_done
@@ -342,6 +345,8 @@ contains
       call derived_fields%get_field('exner_in_wth', exner_in_wth)
       call clone_bundle(mr, dmr_cld, nummr)
       call dtheta%copy_field_properties(dtheta_cld)
+      mesh      => theta%get_mesh()
+      dz_in_wth => get_dz_at_wtheta(mesh%get_id())
       if (theta_moist_source) then
         ! More accurate thermodynamic approximations
         Rv = gas_constant_h2o
@@ -358,6 +363,7 @@ contains
                                              dmr_cld(imr_r),                   &
                                              mr(imr_v), mr(imr_cl), mr(imr_r), &
                                              exner_in_wth,                     &
+                                             dz_in_wth,                        &
                                              Rd, Rv, cp, cpv, cl, p_zero, dt) )
       evap_condense_done = .true.
     end if
