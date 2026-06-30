@@ -152,6 +152,8 @@ contains
     type( field_collection_type ), intent(inout) :: aerosol_fields
     type( field_collection_type ), intent(inout) :: stph_fields
 
+    type(mesh_type), pointer :: mesh      => null()
+
     ! scalars
     integer(kind=i_def),     intent(in) :: outer
     class(model_clock_type), intent(in) :: clock
@@ -163,6 +165,7 @@ contains
     ! ...for evaporation condensation
     type( field_type ) :: dtheta_cld
     type( field_type ) :: dmr_cld(nummr)
+    type( field_type ), pointer :: dz_in_wth           => null()
 
 #ifdef UM_PHYSICS
     ! ...for boundary layer stochastic perturbation
@@ -191,8 +194,6 @@ contains
     type( field_type), pointer :: u_star => null()
     type( field_type), pointer :: exner_in_wth => null()
 
-    type( field_type ), pointer :: dz_in_wth           => null()
-    type(mesh_type), pointer :: mesh      => null()
 
     ! Flags to indicate whether scheme has run and increments need adding
     logical(kind=l_def) :: boundary_layer_done, stph_done, blpert_done, &
@@ -358,11 +359,11 @@ contains
         cpv = 0.0_r_def
         cl = 0.0_r_def
       end if
-      call invoke( evap_condense_kernel_type( dtheta_cld, theta, &
+      call invoke( evap_condense_kernel_type(dtheta_cld, theta, &
                           dmr_cld(imr_v), dmr_cld(imr_cl), dmr_cld(imr_r), &
                           mr(imr_v), mr(imr_cl), mr(imr_r), &
                           exner_in_wth, dz_in_wth, &
-                          Rd, Rv, cp, cpv, cl, p_zero, dt ) )
+                          Rd, Rv, cp, cpv, cl, p_zero, dt) )
       evap_condense_done = .true.
     end if
 
