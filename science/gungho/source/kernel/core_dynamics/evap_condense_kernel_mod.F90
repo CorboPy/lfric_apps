@@ -20,7 +20,7 @@ module evap_condense_kernel_mod
 
   use argument_mod,                only: arg_type, GH_SCALAR,                  &
                                          GH_FIELD, GH_WRITE, GH_READ,          &
-                                         DOF, GH_REAL
+                                         CELL_COLUMN, GH_REAL
   use constants_mod,               only: r_def, i_def, r_second
   use driver_water_constants_mod,  only: Lv0 => latent_heat_h2o_condensation
   use fs_continuity_mod,           only: Wtheta
@@ -38,16 +38,16 @@ module evap_condense_kernel_mod
   type, public, extends(kernel_type) :: evap_condense_kernel_type
     private
     type(arg_type) :: meta_args(17) = (/                                       &
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! theta_inc
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! theta_n    
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_v_inc
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_cl_inc
-        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, WTHETA),                        & ! mr_r_inc
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_v_n
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_cl_n
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! mr_r_n
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! exner_at_wt
-        arg_type(GH_FIELD,  GH_REAL, GH_READ,  WTHETA),                        & ! dz_wtheta
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, Wtheta),                        & ! theta_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! theta_n    
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, Wtheta),                        & ! mr_v_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, Wtheta),                        & ! mr_cl_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_WRITE, Wtheta),                        & ! mr_r_inc
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! mr_v_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! mr_cl_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! mr_r_n
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! exner_at_wt
+        arg_type(GH_FIELD,  GH_REAL, GH_READ,  Wtheta),                        & ! dz_wtheta
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rd
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! Rv
         arg_type(GH_SCALAR, GH_REAL, GH_READ),                                 & ! cpd
