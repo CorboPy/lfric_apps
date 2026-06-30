@@ -130,7 +130,7 @@ contains
     real(kind=r_def), intent(in)                              :: Rd, Rv, cpd,  &
                                                                  cpv, cl,      &
                                                                  p_zero 
-    real(kind=r_second), intent(in)                           :: dt
+    real(kind=r_second), intent(in)                           :: dt             !> ToDo: figure out fast vs slow dt
     real(kind=r_def), dimension(undf_wtheta), intent(in)      :: dz_wtheta
     integer(kind=i_def), dimension(ndf_wtheta), intent(in)    :: map_wtheta
 
