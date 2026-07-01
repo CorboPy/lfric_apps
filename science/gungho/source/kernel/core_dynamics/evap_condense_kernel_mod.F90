@@ -148,7 +148,7 @@ contains
     real(kind=r_def)                         :: cvd, cvv, kappa
     real(kind=r_def), parameter              :: ref_temperature = 273.15_r_def
     real(kind=r_def), parameter              :: cl_threshold = 0.001_r_def      ! cloud threshold
-    real(kind=r_def), parameter              :: rain_fall_speed = 10.0_r_def    ! m/s
+    real(kind=r_def), parameter              :: rain_fall_speed = 5.0_r_def    ! m/s
     integer(kind=i_def)                      :: k
 
     ! Calculate kappa, cvd, cvv
