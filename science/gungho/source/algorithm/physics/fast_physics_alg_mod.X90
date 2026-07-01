@@ -53,6 +53,8 @@ module fast_physics_alg_mod
 
   ! Derived Types
   use field_mod,            only: field_type
+  use function_space_mod,   only: function_space_type
+  use mesh_mod,             only: mesh_type
   use sci_field_bundle_builtins_mod, &
                             only: clone_bundle
   use field_collection_mod, only: field_collection_type
@@ -166,6 +168,8 @@ contains
     type( field_type ) :: dtheta_cld
     type( field_type ) :: dmr_cld(nummr)
     type( field_type ), pointer :: dz_in_wth           => null()
+    type( mesh_type ), pointer  :: local_mesh          => null()
+    type( function_space_type ), pointer :: fs         => null()
 
 #ifdef UM_PHYSICS
     ! ...for boundary layer stochastic perturbation
@@ -205,6 +209,7 @@ contains
 
     integer(i_def) :: i_mr
     integer(tik)   :: id
+    integer(kind=i_def) :: mesh_id
 
     if ( LPROF ) call start_timing( id, 'fast_physics' )
 
@@ -346,7 +351,10 @@ contains
       call derived_fields%get_field('exner_in_wth', exner_in_wth)
       call clone_bundle(mr, dmr_cld, nummr)
       call dtheta%copy_field_properties(dtheta_cld)
-      dz_in_wth => get_dz_at_wtheta( theta%get_mesh()%get_id() )
+      fs => theta%get_function_space()
+      local_mesh => fs%get_mesh()
+      mesh_id = local_mesh%get_id()
+      dz_in_wth => get_dz_at_wtheta(mesh_id)
       if (theta_moist_source) then
         ! More accurate thermodynamic approximations
         Rv = gas_constant_h2o
