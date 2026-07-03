@@ -325,7 +325,8 @@ contains
       theta_inc(map_wtheta(1) + k) = theta_np1(map_wtheta(1) + k)              &
           - theta_n(map_wtheta(1) + k)
     end do
-    !> ToDo: split the above over multiple lines
+    !> ToDo: ensure q_v, q_c, and q_r are above or equal to 0
+    !> ToDo: verify total water mass is the same before vs after the scheme
 
   end subroutine evap_condense_code
 
