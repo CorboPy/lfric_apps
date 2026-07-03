@@ -137,12 +137,12 @@ contains
     ! Internal variables
     real(kind=r_def), dimension(undf_wtheta) :: theta_np1, mr_v_np1,           &
       mr_cl_np1, mr_r_np1, mr_v_np2, mr_cl_np2, mr_r_np2, mr_r_np3
-    real(kind=r_def)                         :: mr_sat(0:nlayers-1),           &
-      dm_v_cond(0:nlayers-1), dm_v_evap(0:nlayers-1)
-    real(kind=r_def)                         :: temperature(0:nlayers-1),      &
-      pressure(0:nlayers-1)
-    real(kind=r_def)                         :: Lv(0:nlayers-1),               &
-      Rm(0:nlayers-1), cpm(0:nlayers-1), cvm(0:nlayers-1)                      
+    real(kind=r_def)                         :: mr_sat(0:nlayers),           &
+      dm_v_cond(0:nlayers), dm_v_evap(0:nlayers)
+    real(kind=r_def)                         :: temperature(0:nlayers),      &
+      pressure(0:nlayers)
+    real(kind=r_def)                         :: Lv(0:nlayers),               &
+      Rm(0:nlayers), cpm(0:nlayers), cvm(0:nlayers)                      
     real(kind=r_def)                         :: rain_carry, rain_available,    &
       fall_fraction, rain_out ! rainout variables
     real(kind=r_def)                         :: cvd, cvv, kappa
@@ -157,7 +157,7 @@ contains
     cvv = cpv - Rv
 
     ! Convert to temperature and pressure
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       temperature(k) = theta_n(map_wtheta(1) + k)                              &
           * exner_at_wt(map_wtheta(1) + k)
       pressure(k) = p_zero * exner_at_wt(map_wtheta(1) + k)                    &
@@ -167,7 +167,7 @@ contains
     ! --------------------------------------------------------------------------
     ! Step 1: Calculate saturation mixing ratio
     ! --------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! This function takes pressure in mbar so divide by 100
       mr_sat(k) = qsaturation(temperature(k), 0.01_r_def*pressure(k))
     end do
@@ -175,7 +175,7 @@ contains
     !---------------------------------------------------------------------------
     ! Step 2: Compute change in vapour due to condensation only
     !---------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! Get latent heat of condensation/evaporation at the current temperature
       Lv(k) = Lv0 - (cl - cpv)*(temperature(k) - ref_temperature)
 
@@ -200,7 +200,7 @@ contains
     !       First fill cloud up to a threshold, then split remaining condensate 
     !       between cloud and rain according to cl_threshold.
     !---------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! Condensation: Add to cloud liquid first
       mr_cl_np1(map_wtheta(1) + k) = mr_cl_n(map_wtheta(1) + k) - dm_v_cond(k)
 
@@ -225,7 +225,7 @@ contains
     ! fall speed, using an exponential limiter to keep the update stable.
     rain_carry = 0.0_r_def  ! rain falling into current layer from layer above
                             ! starts at 0 for the top layer
-    do k = nlayers-1, 0, -1
+    do k = nlayers, 0, -1
 
       ! add rain carried from layer above to the rain available in this layer
       rain_available = mr_r_np1(map_wtheta(1) + k) + rain_carry   
@@ -248,7 +248,7 @@ contains
     !---------------------------------------------------------------------------
     ! Step 5: Compute change in vapour due to evaporation only
     !---------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! Compute change in mr_v using *updated* mr_v_np1 and mr_sat from before
       dm_v_evap(k) = - (mr_v_np1(map_wtheta(1) + k) - mr_sat(k)) /             &
               (1.0_r_def + (mr_sat(k) * Lv(k) ** 2.0_r_def) /                  &
@@ -275,7 +275,7 @@ contains
     !---------------------------------------------------------------------------
     ! Step 6: Update cloud and rain liquid after evaporation
     !---------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! Evaporation: Take from cloud liquid first
       mr_cl_np2(map_wtheta(1) + k) = mr_cl_np1(map_wtheta(1) + k)              & 
             - dm_v_evap(k)  ! mr_cl update = previous cloud - evaporation
@@ -298,14 +298,15 @@ contains
     !---------------------------------------------------------------------------
     ! Step 7: Update the increments for theta, mr_v, mr_cl, and mr_r
     !---------------------------------------------------------------------------
-    do k = 0, nlayers-1
+    do k = 0, nlayers
       ! Get the specific heat capacity of the mixture 
       ! (dry air + water vapour + cloud liquid + rain liquid)
       cpm(k) = cpd + mr_v_n(map_wtheta(1) + k) * cpv                           & 
           + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl      
       cvm(k) = cvd + mr_v_n(map_wtheta(1) + k) * cvv                           &
           + (mr_cl_n(map_wtheta(1) + k) + mr_r_n(map_wtheta(1) + k)) * cl      
-      Rm(k) = Rd + mr_v_n(map_wtheta(1) + k) * Rv    
+      Rm(k) = Rd + mr_v_n(map_wtheta(1) + k) * Rv   
+      ! should I be using mr_v_np2, mr_r_np3, mr_cl_np2 here?
 
       ! Mixing ratios
       mr_v_inc(map_wtheta(1) + k)  = mr_v_np2(map_wtheta(1) + k)               &  
