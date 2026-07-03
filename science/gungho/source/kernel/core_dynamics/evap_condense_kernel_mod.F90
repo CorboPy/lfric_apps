@@ -318,7 +318,7 @@ contains
 
       ! Potential temperature increment due to latent heating
       theta_np1(map_wtheta(1) + k) = theta_n(map_wtheta(1) + k) *              & 
-          (1.0_r_def + (dm_v_cond(k) + dm_v_evap(k)) *                         &
+          (1.0_r_def - (dm_v_cond(k) + dm_v_evap(k)) *                         &
           ((cvd * Lv(k) / (cvm(k) * cpd * temperature(k))) -                   &
           (Rv / cvm(k)) * (1.0_r_def - ((Rd * cpm(k)) /                        &
           (cpd * Rm(k))))))
