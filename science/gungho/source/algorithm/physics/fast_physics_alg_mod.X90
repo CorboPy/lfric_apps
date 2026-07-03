@@ -412,23 +412,23 @@ contains
                   inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)), &
                   inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
                   inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  
+
+      call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_v fast')
+      call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_cl fast')
+      call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_r fast')
     end if
-    call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dtheta fast')
-
-    call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_v fast')
-    call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_cl fast')
-    call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_r fast')
-
     call print_field_stats_alg(mr(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_v fast')
     call print_field_stats_alg(mr(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_cl fast')
     call print_field_stats_alg(mr(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_r fast')
+
+    call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                            printmax=20.0_r_def, name='dtheta fast')
     if ( use_moisture ) then
       do i_mr = 1, nummr
         call invoke( enforce_lower_bound_kernel_type (mr(i_mr), 0.0_r_def) )

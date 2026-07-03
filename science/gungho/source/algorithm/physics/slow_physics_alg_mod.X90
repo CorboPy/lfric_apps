@@ -1177,15 +1177,14 @@ contains
     end if ! (scheme == scheme_pc2)
 #endif
 
-    call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dtheta slow')
-
-    call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_v slow')
-    call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_cl slow')
-    call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                            printmax=20.0_r_def, name='dmr_r slow')
+    if (evap_condense_done) then
+      call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_v slow')
+      call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_cl slow')
+      call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                              printmax=20.0_r_def, name='dmr_cld_r slow')
+    end if
 
     call print_field_stats_alg(mr(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_v slow')
@@ -1193,6 +1192,9 @@ contains
                             printmax=20.0_r_def, name='mr_cl slow')
     call print_field_stats_alg(mr(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_r slow')
+
+    call print_field_stats_alg(dtheta, LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                            printmax=20.0_r_def, name='dtheta slow')
 
     if ( moisture_formulation /= moisture_formulation_dry ) then
       do i_mr = 1, nummr
