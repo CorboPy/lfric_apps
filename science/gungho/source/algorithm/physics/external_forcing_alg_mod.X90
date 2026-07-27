@@ -13,6 +13,7 @@ module external_forcing_alg_mod
                                              theta_forcing_tidally_locked_earth, &
                                              theta_forcing_shallow_hot_jupiter,  &
                                              theta_forcing_deep_hot_jupiter,     &
+                                             theta_forcing_idealised_radiation,  &
                                              theta_forcing_temp_tend,            &
                                              theta_relaxation,                   &
                                              vapour_forcing,                     &
@@ -41,6 +42,7 @@ module external_forcing_alg_mod
   use tidally_locked_earth_kernel_mod, only: tidally_locked_earth_kernel_type
   use shallow_hot_jupiter_kernel_mod,  only: shallow_hot_jupiter_kernel_type
   use deep_hot_jupiter_kernel_mod,     only: deep_hot_jupiter_kernel_type
+  use idealised_radiation_kernel_mod,  only: idealised_radiation_kernel_type
   use momentum_smagorinsky_kernel_mod, only: momentum_smagorinsky_kernel_type
 #ifdef UM_PHYSICS
   use pc2_force_response_alg_mod,      only: pc2_force_response_alg
@@ -70,6 +72,7 @@ module external_forcing_alg_mod
   use vertadvect_forcing_alg_mod,      only: vertadvect_forcing_alg
   use temp_tend_profile_alg_mod,       only: temp_tend_profile_alg
   use theta_relax_alg_mod,             only: theta_relax_alg
+  use horiz_mean_alg_mod,              only: horiz_mean_alg
   use geostrophic_forcing_alg_mod,     only: geostrophic_forcing_alg
   use vapour_forcing_profile_alg_mod,  only: vapour_forcing_profile_alg
   use wind_forcing_profile_alg_mod,    only: wind_forcing_profile_alg
@@ -147,6 +150,7 @@ contains
     type( field_type ), pointer :: dx_at_w2 => null()
 
     type( field_type ) :: u_smoothed, dx, visc_m
+    type( field_type ) :: temperature, temperature_mean
 
     integer( kind=i_def ) :: order, nlayers
     real( kind=r_def )    :: diffusion_coefficient_scaled, dx_sum, dx_size
@@ -216,6 +220,24 @@ contains
 
           call invoke(deep_hot_jupiter_kernel_type(dtheta_forcing, theta, &
                                                    exner_in_wth, chi, panel_id, dt) )
+
+        case(theta_forcing_idealised_radiation)
+
+          call log_event( 'slow_physics: Running idealised-radiation theta forcing', &
+                          LOG_LEVEL_INFO )
+
+          nlayers = mesh%get_nlayers()
+          call temperature%initialise( vector_space = theta%get_function_space() )
+          call temperature_mean%initialise( vector_space = theta%get_function_space() )
+
+          call invoke( X_times_Y( temperature, theta, exner_in_wth ) )
+          call horiz_mean_alg( temperature_mean, nlayers, twod_mesh, temperature )
+
+          call invoke( idealised_radiation_kernel_type(dtheta_forcing, theta,         &
+                                                       exner_in_wth, temperature_mean, &
+                                                       dt) )
+          call temperature%field_final()
+          call temperature_mean%field_final()
 
         case(theta_forcing_temp_tend)
 

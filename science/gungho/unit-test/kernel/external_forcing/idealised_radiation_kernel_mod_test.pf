@@ -1,0 +1,116 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> Test the idealised radiation forcing kernel
+module idealised_radiation_kernel_mod_test
+
+  use constants_mod, only : i_def, r_def
+  use funit
+
+  implicit none
+
+  private
+  public :: set_up, tear_down, test_all
+
+contains
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @before
+  subroutine set_up()
+
+    use feign_config_mod, only : feign_planet_config
+
+    implicit none
+
+    call feign_planet_config( gravity=9.80665_r_def,   &
+                              omega=7.292116e-5_r_def, &
+                              rd=287.05_r_def,         &
+                              cp=1005.0_r_def,         &
+                              p_zero=100000.0_r_def,   &
+                              scaling_factor=1.0_r_def )
+
+  end subroutine set_up
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @after
+  subroutine tear_down()
+
+    use config_loader_mod, only: final_configuration
+
+    implicit none
+
+    call final_configuration()
+
+  end subroutine tear_down
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @test
+  subroutine test_all()
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use idealised_radiation_kernel_mod, only : idealised_radiation_code
+    use planet_config_mod, only : cp, gravity, p_zero, kappa
+
+    implicit none
+
+    integer(kind=i_def), parameter :: nlayers = 3_i_def
+    integer(kind=i_def), parameter :: ndf_wth = 2_i_def
+    integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
+    real(kind=r_def),    parameter :: dt = 600.0_r_def
+
+    real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def
+    real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def
+    real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def
+    real(kind=r_def), parameter :: tol = 1.0e-12_r_def
+
+    integer(kind=i_def) :: map_wth(ndf_wth)
+    real(kind=r_def)    :: theta(undf_wth)
+    real(kind=r_def)    :: exner_in_wth(undf_wth)
+    real(kind=r_def)    :: temperature_mean(undf_wth)
+    real(kind=r_def)    :: dtheta(undf_wth)
+    real(kind=r_def)    :: answer(undf_wth)
+    real(kind=r_def)    :: dtemp_dt_troposphere
+    real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
+    real(kind=r_def)    :: use_tol
+    integer(kind=i_def) :: k
+
+    map_wth = (/ 1_i_def, 2_i_def /)
+
+    theta = (/ 300.0_r_def, 300.0_r_def, 275.0_r_def, 300.0_r_def /)
+    exner_in_wth = (/ 1.0_r_def, 0.9_r_def, 0.8_r_def, 0.7_r_def /)
+    temperature_mean = (/ 280.0_r_def, 240.0_r_def, 200.0_r_def, 190.0_r_def /)
+    dtheta = 0.0_r_def
+
+    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,          &
+                                   temperature_mean, dt, ndf_wth, undf_wth, map_wth )
+
+    p_surface = p_zero * exner_in_wth(map_wth(1)) ** (1.0_r_def / kappa)
+    p_tropopause = p_zero * exner_in_wth(map_wth(1) + 2_i_def) **                  &
+                  (1.0_r_def / kappa)
+    delta_pressure = p_surface - p_tropopause
+    dtemp_dt_troposphere = -column_cooling_flux * gravity / (cp * delta_pressure)
+
+    answer(map_wth(1)) = dtemp_dt_troposphere * dt / exner_in_wth(map_wth(1))
+    answer(map_wth(1) + 1_i_def) = dtemp_dt_troposphere * dt /                    &
+                                   exner_in_wth(map_wth(1) + 1_i_def)
+    answer(map_wth(1) + 2_i_def) = dtemp_dt_troposphere * dt /                    &
+                                   exner_in_wth(map_wth(1) + 2_i_def)
+    answer(map_wth(1) + 3_i_def) =                                                  &
+      (-(theta(map_wth(1) + 3_i_def) * exner_in_wth(map_wth(1) + 3_i_def) -       &
+         tropopause_temperature) / nudging_timescale) * dt /                       &
+      exner_in_wth(map_wth(1) + 3_i_def)
+
+    do k = 0, nlayers
+      if (r_def == real64) then
+        use_tol = tol
+      else
+        use_tol = 10.0_r_def * spacing(answer(map_wth(1) + k))
+      end if
+      @assertEqual( answer(map_wth(1) + k), dtheta(map_wth(1) + k), use_tol )
+    end do
+
+  end subroutine test_all
+
+end module idealised_radiation_kernel_mod_test
