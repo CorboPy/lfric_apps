@@ -236,8 +236,8 @@ contains
           call invoke( idealised_radiation_kernel_type(dtheta_forcing, theta,         &
                                                        exner_in_wth, temperature_mean, &
                                                        dt) )
-          call temperature%field_final()
-          call temperature_mean%field_final()
+          !call temperature%field_final()
+          !call temperature_mean%field_final()
 
         case(theta_forcing_temp_tend)
 
