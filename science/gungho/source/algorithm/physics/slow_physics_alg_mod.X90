@@ -27,7 +27,8 @@ module slow_physics_alg_mod
   use constants_mod,             only: i_def, r_def, l_def
   use sci_geometric_constants_mod, &
                                  only: get_dz_at_wtheta
-  use log_mod,                   only: LOG_LEVEL_INFO
+  use log_mod,                   only: LOG_LEVEL_INFO, LOG_LEVEL_ERROR, &
+                                       log_event
   use lfric_xios_write_mod,      only: write_field_generic
   use mesh_mod,                  only: mesh_type
   use driver_modeldb_mod,        only: modeldb_type
@@ -998,6 +999,12 @@ contains
       local_mesh => fs%get_mesh()
       mesh_id = local_mesh%get_id()
       dz_in_wth => get_dz_at_wtheta(mesh_id)
+      if (.not. associated(dz_in_wth)) then
+        call log_event('dz_in_wth NOT associated', LOG_LEVEL_ERROR)
+      else
+        call log_event('dz_in_wth associated', LOG_LEVEL_INFO)
+      end if
+
       if (theta_moist_source) then
         ! More accurate thermodynamic approximations
         Rv = gas_constant_h2o
