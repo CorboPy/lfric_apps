@@ -1128,16 +1128,24 @@ contains
       call dtheta_bl%field_final()
     end if
 
-    if (evap_condense_done) then
-      call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),     &
-                  inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)), &
-                  inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
-                  inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))  
-      do i_mr = 1, nummr
-        call dmr_cld(i_mr)%field_final()
-      end do
-      call dtheta_cld%field_final()
-    end if
+  if (evap_condense_done) then
+    call invoke(inc_X_plus_Y(dtheta,      dtheta_cld),     &
+                inc_X_plus_Y(mr(imr_v),   dmr_cld(imr_v)), &
+                inc_X_plus_Y(mr(imr_cl),  dmr_cld(imr_cl)), &
+                inc_X_plus_Y(mr(imr_r),   dmr_cld(imr_r)))
+
+    call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                            printmax=20.0_r_def, name='dmr_cld_v slow')
+    call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                            printmax=20.0_r_def, name='dmr_cld_cl slow')
+    call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+                            printmax=20.0_r_def, name='dmr_cld_r slow')
+
+    do i_mr = 1, nummr
+      call dmr_cld(i_mr)%field_final()
+    end do
+    call dtheta_cld%field_final()
+  end if
 
 #ifdef UM_PHYSICS
     !--------------------------------------------------------------------
@@ -1185,14 +1193,14 @@ contains
     end if ! (scheme == scheme_pc2)
 #endif
 
-    if (evap_condense_done) then
-      call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                              printmax=20.0_r_def, name='dmr_cld_v slow')
-      call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                              printmax=20.0_r_def, name='dmr_cld_cl slow')
-      call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
-                              printmax=20.0_r_def, name='dmr_cld_r slow')
-    end if
+    ! if (evap_condense_done) then
+    !   call print_field_stats_alg(dmr_cld(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+    !                           printmax=20.0_r_def, name='dmr_cld_v slow')
+    !   call print_field_stats_alg(dmr_cld(imr_cl), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+    !                           printmax=20.0_r_def, name='dmr_cld_cl slow')
+    !   call print_field_stats_alg(dmr_cld(imr_r), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
+    !                           printmax=20.0_r_def, name='dmr_cld_r slow')
+    ! end if
 
     call print_field_stats_alg(mr(imr_v), LOG_LEVEL_INFO, printmin=-20.0_r_def, &
                             printmax=20.0_r_def, name='mr_v slow')
