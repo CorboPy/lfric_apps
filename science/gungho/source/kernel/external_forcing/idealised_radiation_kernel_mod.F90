@@ -31,17 +31,17 @@ module idealised_radiation_kernel_mod
   !> The type declaration for the kernel. Contains metadata for the PSy layer.
   type, public, extends(kernel_type) :: idealised_radiation_kernel_type
     private
-    type(arg_type) :: meta_args(10) = (/                   &
-         arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), & !dtheta_forcing
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !theta
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !exner_in_wth
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !temperature_mean
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_v_n 
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_cl_n 
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_r_n 
-         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !cpv
-         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !cl
-         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !dt
+    type(arg_type) :: meta_args(10) = (/                    &
+         arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), & ! dtheta_forcing
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! theta
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! exner_in_wth
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! temperature_mean
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_v_n 
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_cl_n 
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_r_n 
+         arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cpv
+         arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cl
+         arg_type(GH_SCALAR, GH_REAL, GH_READ)              & ! dt
          /)
     integer :: operates_on = CELL_COLUMN
   contains
@@ -106,7 +106,7 @@ contains
     do k = 0, nlayers
       ! Get the specific heat capacity of the mixture 
       ! (dry air + water vapour + cloud liquid + rain liquid)
-      cpm(k) = cpd + mr_v_n(map_wth(1) + k) * cpv                           & 
+      cpm(k) = cp + mr_v_n(map_wth(1) + k) * cpv                           & 
           + (mr_cl_n(map_wth(1) + k) + mr_r_n(map_wth(1) + k)) * cl      
     end do
 
