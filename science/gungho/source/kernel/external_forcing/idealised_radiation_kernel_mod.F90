@@ -31,12 +31,17 @@ module idealised_radiation_kernel_mod
   !> The type declaration for the kernel. Contains metadata for the PSy layer.
   type, public, extends(kernel_type) :: idealised_radiation_kernel_type
     private
-    type(arg_type) :: meta_args(5) = (/                   &
-         arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), &
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), &
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), &
-         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), &
-         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &
+    type(arg_type) :: meta_args(10) = (/                   &
+         arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), & !dtheta_forcing
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !theta
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !exner_in_wth
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !temperature_mean
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_v_n 
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_cl_n 
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & !mr_r_n 
+         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !cpv
+         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !cl
+         arg_type(GH_SCALAR, GH_REAL, GH_READ)             &  !dt
          /)
     integer :: operates_on = CELL_COLUMN
   contains
@@ -53,6 +58,11 @@ contains
 !> @param[in]     theta Potential temperature data
 !> @param[in]     exner_in_wth Exner pressure in Wtheta space
 !> @param[in]     temperature_mean Horizontally averaged absolute temperature
+!> @param[in]     mr_v_n       Water vapour mixing ratio input
+!> @param[in]     mr_cl_n      Liquid cloud mixing ratio input
+!> @param[in]     mr_r_n       Rain liquid mixing ratio input
+!> @param[in]     cpv          Heat capacity of water vap at constant pressure
+!> @param[in]     cl           Heat capacity of liquid water
 !> @param[in]     dt The model timestep length
 !> @param[in]     ndf_wth Number of degrees of freedom per cell for Wtheta
 !> @param[in]     undf_wth Number of unique degrees of freedom for Wtheta
@@ -60,9 +70,10 @@ contains
   subroutine idealised_radiation_code(nlayers,                    &
                                       dtheta, theta,              &
                                       exner_in_wth,               &
-                                      temperature_mean, dt,       &
-                                      ndf_wth, undf_wth, map_wth  &
-                                     )
+                                      temperature_mean,           &
+                                      mr_v_n, mr_cl_n, mr_r_n,    &
+                                      cpv, cl, dt,                &
+                                      ndf_wth, undf_wth, map_wth)
 
     implicit none
 
@@ -73,18 +84,31 @@ contains
     real(kind=r_def), dimension(undf_wth), intent(in)    :: theta
     real(kind=r_def), dimension(undf_wth), intent(in)    :: exner_in_wth
     real(kind=r_def), dimension(undf_wth), intent(in)    :: temperature_mean
-    real(kind=r_def),                      intent(in)     :: dt
+    real(kind=r_def), dimension(undf_wth), intent(in)    :: mr_v_n,  &
+                                                            mr_cl_n, &
+                                                            mr_r_n    
+    real(kind=r_def),                        intent(in)  :: cpv, cl, &
+                                                            dt
 
     integer(kind=i_def), dimension(ndf_wth), intent(in)  :: map_wth
 
     integer(kind=i_def) :: k, tropopause_level
     real(kind=r_def)    :: exner, temperature, dtemp_dt
     real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
-    real(kind=r_def)    :: tropospheric_dtemp_dt
+    real(kind=r_def)    :: tropospheric_dtemp_dt(0:nlayers)
+    real(kind=r_def)    :: cpm(0:nlayers)
 
     real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def  ! W m-2
     real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def ! K
     real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def ! 6 hours
+
+    !cpm = cpd + mr_v_n * cpv + mr_cl_n * cl
+    do k = 0, nlayers
+      ! Get the specific heat capacity of the mixture 
+      ! (dry air + water vapour + cloud liquid + rain liquid)
+      cpm(k) = cpd + mr_v_n(map_wth(1) + k) * cpv                           & 
+          + (mr_cl_n(map_wth(1) + k) + mr_r_n(map_wth(1) + k)) * cl      
+    end do
 
     tropopause_level = nlayers
     do k = 0, nlayers
@@ -100,9 +124,14 @@ contains
     delta_pressure = p_surface - p_tropopause
 
     if (delta_pressure > epsilon(1.0_r_def)) then
-      tropospheric_dtemp_dt = -column_cooling_flux * gravity / (cp * delta_pressure)
+      ! loop over for dt here?
+      do k = 0, nlayers
+        tropospheric_dtemp_dt(k) = -column_cooling_flux * gravity / (cpm(k) * delta_pressure)
+      end do
     else
-      tropospheric_dtemp_dt = 0.0_r_def
+      do k = 0, nlayers
+        tropospheric_dtemp_dt(k) = 0.0_r_def
+      end do
     end if
 
     do k = 0, nlayers
@@ -114,7 +143,7 @@ contains
       end if
 
       if (k <= tropopause_level) then
-        dtemp_dt = tropospheric_dtemp_dt
+        dtemp_dt = tropospheric_dtemp_dt(k)
       else
         temperature = theta(map_wth(1) + k) * exner
         dtemp_dt = -(temperature - tropopause_temperature) / nudging_timescale

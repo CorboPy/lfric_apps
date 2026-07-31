@@ -6,6 +6,8 @@
 !> @brief Interface to external forcing code.
 module external_forcing_alg_mod
 
+  use driver_water_constants_mod,      only: heat_capacity_h2o_vapour,           &
+                                             heat_capacity_h2o
   use external_forcing_config_mod,     only: theta_forcing,                      &
                                              theta_forcing_none,                 &
                                              theta_forcing_held_suarez,          &
@@ -60,8 +62,9 @@ module external_forcing_alg_mod
                                              get_height_fv,   &
                                              get_dx_at_w2
   use mesh_mod,                        only: mesh_type
-  use mr_indices_mod,                  only: nummr
+  use mr_indices_mod,                  only: nummr, imr_v, imr_cl, imr_r
   use io_config_mod,                   only: write_diag, use_xios_io
+  use formulation_config_mod,          only: theta_moist_source
   use planet_config_mod,               only: kappa
   use section_choice_config_mod,       only: cloud, cloud_um
   use cloud_config_mod,                only: scheme, scheme_pc2
@@ -155,6 +158,9 @@ contains
     integer( kind=i_def ) :: order, nlayers
     real( kind=r_def )    :: diffusion_coefficient_scaled, dx_sum, dx_size
 
+    ! idealised_radiation
+    real( kind=r_def )                    :: cpv, cl
+
     type( mesh_type ),  pointer :: mesh => null()
     procedure(write_interface), pointer :: write_behaviour => null()
     integer(tik)                        :: id
@@ -231,11 +237,23 @@ contains
           call temperature_mean%initialise( vector_space = theta%get_function_space() )
 
           call invoke( X_times_Y( temperature, theta, exner_in_wth ) )
+
+          if (theta_moist_source) then
+            ! More accurate thermodynamic approximations
+            cpv = heat_capacity_h2o_vapour
+            cl = heat_capacity_h2o
+          else
+            ! Do not include moist contributions to thermodynamic variables
+            cpv = 0.0_r_def
+            cl = 0.0_r_def
+          end if
+
           call horiz_mean_alg( temperature_mean, nlayers, twod_mesh, temperature )
 
           call invoke( idealised_radiation_kernel_type(dtheta_forcing, theta,         &
                                                        exner_in_wth, temperature_mean, &
-                                                       dt) )
+                                                       mr_n(imr_v), mr_n(imr_cl), &
+                                                       mr_n(imr_r), cpv, cl, dt) )
           !call temperature%field_final()
           !call temperature_mean%field_final()
 
