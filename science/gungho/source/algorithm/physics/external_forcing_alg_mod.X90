@@ -60,7 +60,8 @@ module external_forcing_alg_mod
                                              get_da_at_w2,    &
                                              get_panel_id,    &
                                              get_height_fv,   &
-                                             get_dx_at_w2
+                                             get_dx_at_w2,    &
+                                             get_dz_at_wtheta
   use mesh_mod,                        only: mesh_type
   use mr_indices_mod,                  only: nummr, imr_v, imr_cl, imr_r
   use io_config_mod,                   only: write_diag, use_xios_io
@@ -152,6 +153,9 @@ contains
     type( field_type ), pointer :: height_w2 => null()
     type( field_type ), pointer :: dx_at_w2 => null()
 
+    type( field_type ), pointer :: wetrho_in_wth => null()
+    type( field_type ), pointer :: dz_in_wth => null()
+
     type( field_type ) :: u_smoothed, dx, visc_m
     type( field_type ) :: temperature, temperature_mean
 
@@ -231,12 +235,16 @@ contains
 
           call log_event( 'slow_physics: Running idealised-radiation theta forcing', &
                           LOG_LEVEL_INFO )
+          
+          call derived_fields%get_field('wetrho_in_wth', wetrho_in_wth)
 
           nlayers = mesh%get_nlayers()
           call temperature%initialise( vector_space = theta%get_function_space() )
           call temperature_mean%initialise( vector_space = theta%get_function_space() )
 
           call invoke( X_times_Y( temperature, theta, exner_in_wth ) )
+
+          dz_in_wth => get_dz_at_wtheta( mesh%get_id() )
 
           if (theta_moist_source) then
             ! More accurate thermodynamic approximations
@@ -253,9 +261,8 @@ contains
           call invoke( idealised_radiation_kernel_type(dtheta_forcing, theta,         &
                                                        exner_in_wth, temperature_mean, &
                                                        mr_n(imr_v), mr_n(imr_cl), &
-                                                       mr_n(imr_r), cpv, cl, dt) )
-          !call temperature%field_final()
-          !call temperature_mean%field_final()
+                                                       mr_n(imr_r), wetrho_in_wth, &
+                                                       dz_in_wth, cpv, cl, dt) )
 
         case(theta_forcing_temp_tend)
 

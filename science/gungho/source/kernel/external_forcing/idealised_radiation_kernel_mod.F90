@@ -31,7 +31,7 @@ module idealised_radiation_kernel_mod
   !> The type declaration for the kernel. Contains metadata for the PSy layer.
   type, public, extends(kernel_type) :: idealised_radiation_kernel_type
     private
-    type(arg_type) :: meta_args(10) = (/                    &
+    type(arg_type) :: meta_args(12) = (/                    &
          arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), & ! dtheta_forcing
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! theta
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! exner_in_wth
@@ -39,6 +39,8 @@ module idealised_radiation_kernel_mod
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_v_n 
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_cl_n 
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! mr_r_n 
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! wetrho_in_wth
+         arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! dz_wtheta
          arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cpv
          arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cl
          arg_type(GH_SCALAR, GH_REAL, GH_READ)              & ! dt
@@ -61,6 +63,8 @@ contains
 !> @param[in]     mr_v_n       Water vapour mixing ratio input
 !> @param[in]     mr_cl_n      Liquid cloud mixing ratio input
 !> @param[in]     mr_r_n       Rain liquid mixing ratio input
+!> @param[in]     wetrho_in_wth Wet density in Wtheta space
+!> @param[in]     dz_wtheta    Vertical grid spacing in Wtheta space
 !> @param[in]     cpv          Heat capacity of water vap at constant pressure
 !> @param[in]     cl           Heat capacity of liquid water
 !> @param[in]     dt The model timestep length
@@ -72,6 +76,7 @@ contains
                                       exner_in_wth,               &
                                       temperature_mean,           &
                                       mr_v_n, mr_cl_n, mr_r_n,    &
+                                      wetrho_in_wth, dz_wtheta,   &
                                       cpv, cl, dt,                &
                                       ndf_wth, undf_wth, map_wth)
 
@@ -86,7 +91,9 @@ contains
     real(kind=r_def), dimension(undf_wth), intent(in)    :: temperature_mean
     real(kind=r_def), dimension(undf_wth), intent(in)    :: mr_v_n,  &
                                                             mr_cl_n, &
-                                                            mr_r_n    
+                                                            mr_r_n   
+    real(kind=r_def), dimension(undf_wth), intent(in)    :: wetrho_in_wth, &
+                                                            dz_wtheta
     real(kind=r_def),                        intent(in)  :: cpv, cl, &
                                                             dt
 
@@ -101,6 +108,8 @@ contains
     real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def  ! W m-2
     real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def ! K
     real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def ! 6 hours
+
+    real(kind=r_def), parameter :: sensible_heat_flux = 1000.0_r_def ! W m-2
 
     !cpm = cpd + mr_v_n * cpv + mr_cl_n * cl
     do k = 0, nlayers
@@ -151,6 +160,10 @@ contains
 
       dtheta(map_wth(1) + k) = dtemp_dt * dt / exner
     end do
+
+    !> @todo Implement first layer temp tendency adjustment to account for surface fluxes.
+    dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
+        (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner_in_wth(map_wth(1)))
 
   end subroutine idealised_radiation_code
 
