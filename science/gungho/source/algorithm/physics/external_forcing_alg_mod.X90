@@ -21,6 +21,7 @@ module external_forcing_alg_mod
                                              vapour_forcing,                     &
                                              vapour_forcing_none,                &
                                              vapour_forcing_profile,             &
+                                             vapour_forcing_idealised_radiation, &
                                              wind_forcing,                       &
                                              wind_forcing_none,                  &
                                              wind_forcing_held_suarez,           &
@@ -44,8 +45,9 @@ module external_forcing_alg_mod
   use tidally_locked_earth_kernel_mod, only: tidally_locked_earth_kernel_type
   use shallow_hot_jupiter_kernel_mod,  only: shallow_hot_jupiter_kernel_type
   use deep_hot_jupiter_kernel_mod,     only: deep_hot_jupiter_kernel_type
-  use idealised_radiation_kernel_mod,  only: idealised_radiation_kernel_type
-  use momentum_smagorinsky_kernel_mod, only: momentum_smagorinsky_kernel_type
+  use idealised_radiation_kernel_mod,   only: idealised_radiation_kernel_type
+  use idealised_evaporation_kernel_mod, only: idealised_evaporation_kernel_type
+  use momentum_smagorinsky_kernel_mod,  only: momentum_smagorinsky_kernel_type
 #ifdef UM_PHYSICS
   use pc2_force_response_alg_mod,      only: pc2_force_response_alg
 #endif
@@ -470,6 +472,22 @@ contains
         case(vapour_forcing_profile)
 
           call vapour_forcing_profile_alg( dmv_forcing, exner_in_wth, time_now )
+
+        case(vapour_forcing_idealised_radiation)
+
+          call log_event( 'slow_physics: Running idealised-radiation vapour forcing', &
+                          LOG_LEVEL_INFO )
+
+          mesh => theta%get_mesh()
+
+          call derived_fields%get_field('wetrho_in_wth', wetrho_in_wth)
+          dz_in_wth => get_dz_at_wtheta( mesh%get_id() )
+
+          call invoke( idealised_evaporation_kernel_type(dmv_forcing,       &
+                                                          wetrho_in_wth,    &
+                                                          dz_in_wth, dt) )
+
+          nullify( mesh )
 
         case default
 

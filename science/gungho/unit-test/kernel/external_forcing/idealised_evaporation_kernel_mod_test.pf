@@ -1,0 +1,73 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> Test the idealised evaporation forcing kernel
+module idealised_evaporation_kernel_mod_test
+
+  use constants_mod, only : i_def, r_def
+  use funit
+
+  implicit none
+
+  private
+  public :: test_all
+
+contains
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @test
+  subroutine test_all()
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use idealised_evaporation_kernel_mod, only : idealised_evaporation_code
+    use driver_water_constants_mod, only : latent_heat_h2o_condensation
+
+    implicit none
+
+    integer(kind=i_def), parameter :: nlayers = 3_i_def
+    integer(kind=i_def), parameter :: ndf_wth = 2_i_def
+    integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
+    real(kind=r_def),    parameter :: dt = 600.0_r_def
+
+    real(kind=r_def), parameter :: evaporative_heat_flux = 200.0_r_def
+    real(kind=r_def), parameter :: tol = 1.0e-12_r_def
+
+    integer(kind=i_def) :: map_wth(ndf_wth)
+    real(kind=r_def)    :: wetrho_in_wth(undf_wth)
+    real(kind=r_def)    :: dz_wtheta(undf_wth)
+    real(kind=r_def)    :: dmv_forcing(undf_wth)
+    real(kind=r_def)    :: answer(undf_wth)
+    real(kind=r_def)    :: use_tol
+    integer(kind=i_def) :: k
+
+    map_wth = (/ 1_i_def, 2_i_def /)
+
+    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
+    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
+    ! Pre-populate with non-zero data to check the kernel overwrites the
+    ! whole column rather than only incrementing the surface value.
+    dmv_forcing = 1.0_r_def
+
+    call idealised_evaporation_code( nlayers, dmv_forcing,        &
+                                     wetrho_in_wth, dz_wtheta, dt, &
+                                     ndf_wth, undf_wth, map_wth )
+
+    answer = 0.0_r_def
+    answer(map_wth(1)) = (evaporative_heat_flux * dt) /                    &
+        (latent_heat_h2o_condensation * wetrho_in_wth(map_wth(1)) *        &
+         dz_wtheta(map_wth(1)))
+
+    do k = 0, nlayers
+      if (r_def == real64) then
+        use_tol = tol
+      else
+        use_tol = 10.0_r_def * spacing(max(abs(answer(map_wth(1) + k)), 1.0_r_def))
+      end if
+      @assertEqual( answer(map_wth(1) + k), dmv_forcing(map_wth(1) + k), use_tol )
+    end do
+
+  end subroutine test_all
+
+end module idealised_evaporation_kernel_mod_test
