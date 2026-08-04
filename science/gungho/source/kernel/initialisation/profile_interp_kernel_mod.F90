@@ -20,8 +20,8 @@ implicit none
 
 private
 
-real(r_def), public    :: profile_data(100)
-real(r_def), public    :: profile_heights(100)
+real(r_def), public, allocatable :: profile_data(:)
+real(r_def), public, allocatable :: profile_heights(:)
 integer(i_def), public :: profile_size
 
 !-------------------------------------------------------------------------------

@@ -77,6 +77,12 @@ end if
 profile_extrap = .true.
 
 profile_size    = temp_prof_size
+
+if (allocated(profile_data)) deallocate(profile_data)
+if (allocated(profile_heights)) deallocate(profile_heights)
+allocate(profile_data(profile_size))
+allocate(profile_heights(profile_size))
+
 profile_data(1:profile_size)    = temp_prof_data(1:profile_size)
 profile_heights(1:profile_size) = temp_prof_heights(1:profile_size)
 if ( profile_size == 1) then
@@ -89,6 +95,12 @@ end if
 
 if ( moisture_formulation /= moisture_formulation_dry ) then
   profile_size    = vapour_prof_size
+
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
+  allocate(profile_data(profile_size))
+  allocate(profile_heights(profile_size))
+
   profile_data(1:profile_size)    = vapour_prof_data(1:profile_size)
   profile_heights(1:profile_size) = vapour_prof_heights(1:profile_size)
   if ( profile_size == 1) then
