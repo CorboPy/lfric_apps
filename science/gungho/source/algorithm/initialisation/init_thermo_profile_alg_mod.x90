@@ -118,6 +118,9 @@ case(perturb_random)
   call invoke( random_perturb_kernel_type( theta, height_wth ) )
 end select
 
+if (allocated(profile_data)) deallocate(profile_data)
+if (allocated(profile_heights)) deallocate(profile_heights)
+
 end subroutine init_thermo_profile_alg
 
 end module init_thermo_profile_alg_mod
