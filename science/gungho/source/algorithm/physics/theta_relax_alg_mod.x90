@@ -110,6 +110,11 @@ contains
                  inc_X_plus_Y( dtheta_forcing, dtheta_relax ) )
   else
     profile_size = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
+
     profile_data( 1:profile_size ) = theta_relax_now( 1:profile_size )
     profile_heights( 1:profile_size ) = heights( 1:profile_size )
     if ( coordinate == coordinate_pressure ) then
@@ -132,6 +137,9 @@ contains
                  inc_X_minus_Y( dtheta_relax, horiz_mean ),            &
                  inc_a_times_X( relaxation_coeff, dtheta_relax ),      &
                  inc_X_plus_Y( dtheta_forcing, dtheta_relax ) )
+
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
 
   end if
 

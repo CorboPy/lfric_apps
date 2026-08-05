@@ -94,6 +94,10 @@ contains
       mesh_id = ozone%get_mesh_id()
       height_o3 => get_height_fv(Wtheta, mesh_id)
       profile_size                    = o3_profile_size
+      if (allocated(profile_data)) deallocate(profile_data)
+      if (allocated(profile_heights)) deallocate(profile_heights)
+      allocate(profile_data(profile_size))
+      allocate(profile_heights(profile_size))
       profile_data(1:profile_size)    = o3_profile_data(1:o3_profile_size)
       profile_heights(1:profile_size) = o3_profile_heights(1:o3_profile_size)
       if ( profile_size == 1) then
@@ -103,6 +107,8 @@ contains
 	call invoke( profile_interp_kernel_type( ozone, height_o3, &
                                                  profile_extrap  ) )
       end if
+      if (allocated(profile_data)) deallocate(profile_data)
+      if (allocated(profile_heights)) deallocate(profile_heights)
     end if
 
     call radiation_fields%get_field('cos_zenith_angle', cos_zenith_angle)

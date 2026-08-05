@@ -157,6 +157,11 @@ else
 !>       When PSyclone supports passing of arrays into kernels (issue #1312),
 !>       these data should be passed through the argument list of the invoke.
   profile_size    = number_heights
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
+  allocate(profile_data(profile_size))
+  allocate(profile_heights(profile_size))
+
   profile_heights(1:profile_size) = heights(1:profile_size)
   profile_extrap = .true.
 
@@ -185,6 +190,9 @@ else
     call invoke( profile_interp_kernel_type( dv_in_w3, height_w3, &
                                              profile_extrap ) )
   end if
+
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
 
   nullify( height_w3 )
 

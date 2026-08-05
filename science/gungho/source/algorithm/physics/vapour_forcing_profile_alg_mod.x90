@@ -105,6 +105,11 @@ else
 !>       When PSyclone supports passing of arrays into kernels (issue #1312),
 !>       these data should be passed through the argument list of the invoke.
   profile_size    = number_heights
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
+  allocate(profile_data(profile_size))
+  allocate(profile_heights(profile_size))
+
   profile_data(1:profile_size)    = vapour_forcing_now(1:profile_size)
   profile_heights(1:profile_size) = heights(1:profile_size)
 
@@ -124,6 +129,8 @@ else
                                              profile_extrap ) )
   end if
   call invoke( inc_a_times_X(dt_rdef, dmr_v) )
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
 end if
 ! Add water vapour tendency forcing to the total forcing increment field
 call invoke( inc_X_plus_Y( dmv_forcing, dmr_v ) )

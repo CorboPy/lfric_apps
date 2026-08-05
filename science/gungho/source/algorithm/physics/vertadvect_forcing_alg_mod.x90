@@ -130,6 +130,10 @@ contains
 !>       When PSyclone supports passing of arrays into kernels (issue #1312),
 !>       these data should be passed through the argument list of the invoke.
     profile_size                    = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     profile_data(1:profile_size)    = w_lsadv_now(1:profile_size)
     profile_heights(1:profile_size) = heights(1:profile_size)
     call invoke( profile_interp_kernel_type( w_rholev, height_w3,              &
@@ -148,6 +152,10 @@ contains
                  inc_X_plus_Y( dmv_forcing, dmv_vertadv ) )
   else
     profile_size                    = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     profile_data(1:profile_size)    = w_lsadv_now(1:profile_size)
     profile_heights(1:profile_size) = heights(1:profile_size)
     call invoke( profile_interp_kernel_type( w_rholev, height_w3,              &
@@ -166,6 +174,10 @@ contains
                  inc_X_plus_Y( dmcl_forcing, dmcl_vertadv )  )
   else
     profile_size                    = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     profile_data(1:profile_size)    = w_lsadv_now(1:profile_size)
     profile_heights(1:profile_size) = heights(1:profile_size)
     call invoke( profile_interp_kernel_type( w_rholev, height_w3,              &
@@ -210,6 +222,10 @@ contains
                                            height_w3, dt ) )
   else
     profile_size                    = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     profile_data(1:profile_size)    = w_lsadv_now(1:profile_size)
     profile_heights(1:profile_size) = heights(1:profile_size)
     call invoke(                                                               &
@@ -225,6 +241,10 @@ contains
                                            height_w3, dt ) )
   else
     profile_size                    = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     profile_data(1:profile_size)    = w_lsadv_now(1:profile_size)
     profile_heights(1:profile_size) = heights(1:profile_size)
     call invoke( profile_interp_kernel_type( w_thlev, height_wth,              &
@@ -236,6 +256,9 @@ contains
   call du_vertadv%initialise( vector_space = du_forcing%get_function_space() )
   call set_wind( du_vertadv, du_in_w3, dv_in_w3, dw_in_wth )
   call invoke( inc_X_plus_Y( du_forcing, du_vertadv ) )
+
+  if (allocated(profile_data)) deallocate(profile_data)
+  if (allocated(profile_heights)) deallocate(profile_heights)
 
   end subroutine vertadvect_forcing_alg
 end module vertadvect_forcing_alg_mod

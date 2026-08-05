@@ -80,6 +80,9 @@ contains
 
     profile_size = 4
 
+    allocate( profile_data(4) )
+    allocate( profile_heights(4) )
+
     profile_data(1:4) = (/ 280.0_r_def,   &
                            300.0_r_def,   &
                            305.0_r_def,   &
@@ -120,6 +123,8 @@ contains
     deallocate( map_wt )
     deallocate( theta )
     deallocate( height_wt )
+    deallocate( profile_data )
+    deallocate( profile_heights )
 
   end subroutine tearDown
 
