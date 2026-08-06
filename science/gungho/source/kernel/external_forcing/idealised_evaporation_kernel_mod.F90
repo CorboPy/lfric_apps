@@ -18,6 +18,7 @@ module idealised_evaporation_kernel_mod
   use fs_continuity_mod, only: Wtheta
   use kernel_mod,      only: kernel_type
   use driver_water_constants_mod, only: latent_heat_h2o_condensation
+  use external_forcing_config_mod, only: evaporative_heat_flux
 
   implicit none
 
@@ -73,14 +74,10 @@ contains
 
     integer(kind=i_def) :: k
 
-    real(kind=r_def), parameter :: evaporative_heat_flux = 1000.0_r_def ! W m-2
-
     do k = 0, nlayers
       dmv_forcing(map_wth(1) + k) = 0.0_r_def
     end do
 
-    !> @todo Implement a configurable surface evaporative heat flux, rather
-    !>       than the hardwired value used here.
     dmv_forcing(map_wth(1)) = dmv_forcing(map_wth(1)) + (evaporative_heat_flux * dt) / &
         (latent_heat_h2o_condensation * wetrho_in_wth(map_wth(1)) * dz_wtheta(map_wth(1)))
 

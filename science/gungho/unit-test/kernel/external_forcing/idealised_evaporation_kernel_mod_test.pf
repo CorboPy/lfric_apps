@@ -12,9 +12,33 @@ module idealised_evaporation_kernel_mod_test
   implicit none
 
   private
-  public :: test_all
+  public :: set_up, tear_down, test_all
 
 contains
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @before
+  subroutine set_up()
+
+    use feign_config_mod, only : feign_external_forcing_config
+
+    implicit none
+
+    call feign_external_forcing_config( evaporative_heat_flux=200.0_r_def )
+
+  end subroutine set_up
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  @after
+  subroutine tear_down()
+
+    use configuration_mod, only: final_configuration
+
+    implicit none
+
+    call final_configuration()
+
+  end subroutine tear_down
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   @test
@@ -23,6 +47,7 @@ contains
     use, intrinsic :: iso_fortran_env, only : real64
     use idealised_evaporation_kernel_mod, only : idealised_evaporation_code
     use driver_water_constants_mod, only : latent_heat_h2o_condensation
+    use external_forcing_config_mod, only : evaporative_heat_flux
 
     implicit none
 
@@ -31,7 +56,6 @@ contains
     integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
     real(kind=r_def),    parameter :: dt = 600.0_r_def
 
-    real(kind=r_def), parameter :: evaporative_heat_flux = 200.0_r_def
     real(kind=r_def), parameter :: tol = 1.0e-12_r_def
 
     integer(kind=i_def) :: map_wth(ndf_wth)

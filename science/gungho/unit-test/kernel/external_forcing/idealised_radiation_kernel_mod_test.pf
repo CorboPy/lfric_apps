@@ -20,7 +20,7 @@ contains
   @before
   subroutine set_up()
 
-    use feign_config_mod, only : feign_planet_config
+    use feign_config_mod, only : feign_planet_config, feign_external_forcing_config
 
     implicit none
 
@@ -30,6 +30,8 @@ contains
                               cp=1005.0_r_def,         &
                               p_zero=100000.0_r_def,   &
                               scaling_factor=1.0_r_def )
+
+    call feign_external_forcing_config( sensible_heat_flux=1000.0_r_def )
 
   end subroutine set_up
 
@@ -52,6 +54,9 @@ contains
     use, intrinsic :: iso_fortran_env, only : real64
     use idealised_radiation_kernel_mod, only : idealised_radiation_code
     use planet_config_mod, only : cp, gravity, p_zero, kappa
+    use external_forcing_config_mod, only : sensible_heat_flux
+    use driver_water_constants_mod, only : heat_capacity_h2o_vapour, &
+                                           heat_capacity_h2o
 
     implicit none
 
@@ -69,9 +74,13 @@ contains
     real(kind=r_def)    :: theta(undf_wth)
     real(kind=r_def)    :: exner_in_wth(undf_wth)
     real(kind=r_def)    :: temperature_mean(undf_wth)
+    real(kind=r_def)    :: mr_v_n(undf_wth), mr_cl_n(undf_wth), mr_r_n(undf_wth)
+    real(kind=r_def)    :: wetrho_in_wth(undf_wth), dz_wtheta(undf_wth)
+    real(kind=r_def)    :: cpv, cl
+    real(kind=r_def)    :: cpm(0:nlayers)
     real(kind=r_def)    :: dtheta(undf_wth)
     real(kind=r_def)    :: answer(undf_wth)
-    real(kind=r_def)    :: dtemp_dt_troposphere
+    real(kind=r_def)    :: dtemp_dt_troposphere(0:nlayers)
     real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
     real(kind=r_def)    :: use_tol
     integer(kind=i_def) :: k
@@ -81,26 +90,48 @@ contains
     theta = (/ 300.0_r_def, 300.0_r_def, 275.0_r_def, 300.0_r_def /)
     exner_in_wth = (/ 1.0_r_def, 0.9_r_def, 0.8_r_def, 0.7_r_def /)
     temperature_mean = (/ 280.0_r_def, 240.0_r_def, 200.0_r_def, 190.0_r_def /)
+    mr_v_n = (/ 0.010_r_def, 0.008_r_def, 0.005_r_def, 0.002_r_def /)
+    mr_cl_n = 0.0_r_def
+    mr_r_n = 0.0_r_def
+    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
+    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
+    cpv = heat_capacity_h2o_vapour
+    cl = heat_capacity_h2o
     dtheta = 0.0_r_def
 
-    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,          &
-                                   temperature_mean, dt, ndf_wth, undf_wth, map_wth )
+    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
+                                   temperature_mean,                              &
+                                   mr_v_n, mr_cl_n, mr_r_n,                       &
+                                   wetrho_in_wth, dz_wtheta,                      &
+                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
+
+    do k = 0, nlayers
+      cpm(k) = cp + mr_v_n(map_wth(1) + k) * cpv &
+          + (mr_cl_n(map_wth(1) + k) + mr_r_n(map_wth(1) + k)) * cl
+    end do
 
     p_surface = p_zero * exner_in_wth(map_wth(1)) ** (1.0_r_def / kappa)
     p_tropopause = p_zero * exner_in_wth(map_wth(1) + 2_i_def) **                  &
                   (1.0_r_def / kappa)
     delta_pressure = p_surface - p_tropopause
-    dtemp_dt_troposphere = -column_cooling_flux * gravity / (cp * delta_pressure)
 
-    answer(map_wth(1)) = dtemp_dt_troposphere * dt / exner_in_wth(map_wth(1))
-    answer(map_wth(1) + 1_i_def) = dtemp_dt_troposphere * dt /                    &
+    do k = 0, nlayers
+      dtemp_dt_troposphere(k) = -column_cooling_flux * gravity / (cpm(k) * delta_pressure)
+    end do
+
+    answer(map_wth(1)) = dtemp_dt_troposphere(0) * dt / exner_in_wth(map_wth(1))
+    answer(map_wth(1) + 1_i_def) = dtemp_dt_troposphere(1) * dt /                  &
                                    exner_in_wth(map_wth(1) + 1_i_def)
-    answer(map_wth(1) + 2_i_def) = dtemp_dt_troposphere * dt /                    &
+    answer(map_wth(1) + 2_i_def) = dtemp_dt_troposphere(2) * dt /                  &
                                    exner_in_wth(map_wth(1) + 2_i_def)
     answer(map_wth(1) + 3_i_def) =                                                  &
       (-(theta(map_wth(1) + 3_i_def) * exner_in_wth(map_wth(1) + 3_i_def) -       &
          tropopause_temperature) / nudging_timescale) * dt /                       &
       exner_in_wth(map_wth(1) + 3_i_def)
+
+    answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /          &
+        (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *              &
+         exner_in_wth(map_wth(1)))
 
     do k = 0, nlayers
       if (r_def == real64) then

@@ -20,6 +20,7 @@ module idealised_radiation_kernel_mod
   use fs_continuity_mod, only: Wtheta
   use kernel_mod,      only: kernel_type
   use planet_config_mod, only: cp, gravity, p_zero, kappa
+  use external_forcing_config_mod, only: sensible_heat_flux
 
   implicit none
 
@@ -109,8 +110,6 @@ contains
     real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def ! K
     real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def ! 6 hours
 
-    real(kind=r_def), parameter :: sensible_heat_flux = 1000.0_r_def ! W m-2
-
     !cpm = cpd + mr_v_n * cpv + mr_cl_n * cl
     do k = 0, nlayers
       ! Get the specific heat capacity of the mixture 
@@ -161,7 +160,6 @@ contains
       dtheta(map_wth(1) + k) = dtemp_dt * dt / exner
     end do
 
-    !> @todo Implement first layer temp tendency adjustment to account for surface fluxes.
     dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
         (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner_in_wth(map_wth(1)))
 
