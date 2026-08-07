@@ -145,23 +145,24 @@ contains
       Rm(0:nlayers), cpm(0:nlayers), cvm(0:nlayers)                      
     real(kind=r_def)                         :: rain_carry, rain_available,    &
       fall_fraction, rain_out ! rainout variables
-    real(kind=r_def)                         :: cvd, cvv, kappa
+    real(kind=r_def)                         :: cvd, cvv, recip_kappa
     real(kind=r_def), parameter              :: ref_temperature = 273.15_r_def
     real(kind=r_def), parameter              :: cl_threshold = 0.001_r_def      ! cloud threshold
     real(kind=r_def), parameter              :: rain_fall_speed = 5.0_r_def    ! m/s
     integer(kind=i_def)                      :: k
 
-    ! Calculate kappa, cvd, cvv
-    kappa = cpd / Rd
+    ! Calculate 1/kappa, cvd, cvv
+    recip_kappa = cpd / Rd
     cvd = cpd - Rd
     cvv = cpv - Rv
 
-    ! Convert to temperature and pressure
+    ! Convert to temperature and pressure.
+    ! exner = (p/p_zero)**kappa with kappa = Rd/cpd, so p = p_zero*exner**(1/kappa)
     do k = 0, nlayers
       temperature(k) = theta_n(map_wtheta(1) + k)                              &
           * exner_at_wt(map_wtheta(1) + k)
       pressure(k) = p_zero * exner_at_wt(map_wtheta(1) + k)                    &
-          ** (1.0_r_def/kappa)
+          ** recip_kappa
     end do
 
     ! --------------------------------------------------------------------------
