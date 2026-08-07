@@ -16,6 +16,11 @@ module physics_common_mod
 
   use constants_mod,                only: r_def
   use planet_config_mod,            only: epsilon
+  use physics_config_mod,           only: saturation_vapour_pressure_scheme, &
+                                        saturation_vapour_pressure_scheme_tetens, &
+                                        saturation_vapour_pressure_scheme_clausius_clapeyron
+  use driver_water_constants_mod,   only: Lv0 => latent_heat_h2o_condensation, &
+                                        Rv0 => gas_constant_h2o
   use log_mod,                      only: log_event, log_scratch_space, &
                                         LOG_LEVEL_INFO, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING
   implicit none
@@ -25,10 +30,16 @@ module physics_common_mod
 
 contains
 
-  ! Function to return the saturation mr over water
-  ! Based on Tetens' formula
-  ! es = 6.109 * exp(17.2693882*(T-273.15)/(T-35.86))
-  ! qs = epsilon * es / (p - es)
+  ! Function to return the saturation mr over water.
+  !
+  ! Tetens' formula (empirical fit, terrestrial conditions):
+  !   es = 6.109 * exp(17.2693882*(T-273.15)/(T-35.86))
+  !
+  ! Clausius-Clapeyron (direct integration, constant Lv and ideal water
+  ! vapour, valid ~150-350K):
+  !   es = es0 * exp((Lv0/Rv0) * (1/T0 - 1/T))
+  !
+  ! In both cases: qs = epsilon * es / (p - es)
   function qsaturation (T, p) result(qs)
     implicit none
     real(kind=r_def), intent(in) :: T     ! Temperature in Kelvin
@@ -36,6 +47,7 @@ contains
 
     real(kind=r_def)             :: qs
     real(kind=r_def)             :: es
+    logical                      :: valid_temperature
 
     real(kind=r_def),  parameter :: tk0c = 273.15_r_def      ! Temperature of freezing in Kelvin
     ! real(kind=r_def),  parameter :: qsa1 = 3.8_r_def         ! Top constant in qsat equation
@@ -44,25 +56,47 @@ contains
     real(kind=r_def),  parameter :: qsa4 = 6.109_r_def       ! Constant in qsat equation in mbar
     real(kind=r_def), parameter :: small = 1.0e-6_r_def      ! Prevent division by very small numbers when p ~ es
 
+    real(kind=r_def), parameter :: cc_t0 = tk0c    ! Reference temperature for Clausius-Clapeyron, [K]
+    real(kind=r_def), parameter :: cc_e0 = qsa4     ! es(cc_t0), [mbar]
+
     character(len=128) :: msg
 
-    if (T > qsa3) then
-      es = qsa4 * exp(-qsa2 * (T - tk0c) / (T-qsa3))
+    select case (saturation_vapour_pressure_scheme)
 
-      if (p > es) then
-        qs = epsilon * es / max(p - es, small)
-      else
-        ! Pressure below saturation vapour pressure
-        write(msg, '(A,ES16.8,A,ES16.8)') "qsaturation: p <= es, p=", p, ", es=", es
-        call log_event(msg, LOG_LEVEL_WARNING)
-        qs = 999.0_r_def
+    case (saturation_vapour_pressure_scheme_clausius_clapeyron)
+      valid_temperature = (T > 0.0_r_def)
+      if (valid_temperature) then
+        es = cc_e0 * exp( (Lv0 / Rv0) * (1.0_r_def / cc_t0 - 1.0_r_def / T) )
       end if
+
+    case (saturation_vapour_pressure_scheme_tetens)
+      valid_temperature = (T > qsa3)
+      if (valid_temperature) then
+        es = qsa4 * exp(-qsa2 * (T - tk0c) / (T-qsa3))
+      end if
+
+    case default
+      call log_event("qsaturation: unknown saturation_vapour_pressure_scheme", &
+                      LOG_LEVEL_ERROR)
+      qs = 999.0_r_def
+      return
+
+    end select
+
+    if (.not. valid_temperature) then
+      ! Invalid temperature for the selected scheme
+      write(msg, '(A,ES16.8)') "qsaturation: T invalid for selected scheme, T=", T
+      call log_event(msg, LOG_LEVEL_WARNING)
+      qs = 999.0_r_def
+    else if (p > es) then
+      qs = epsilon * es / max(p - es, small)
     else
-      ! Invalid temperature for Tetens
-      write(msg, '(A,ES16.8,A,ES16.8)') "qsaturation: T <= qsa3, T=", T, ", qsa3=", qsa3
+      ! Pressure below saturation vapour pressure
+      write(msg, '(A,ES16.8,A,ES16.8)') "qsaturation: p <= es, p=", p, ", es=", es
       call log_event(msg, LOG_LEVEL_WARNING)
       qs = 999.0_r_def
     end if
+
   end function qsaturation
 
 end module physics_common_mod
