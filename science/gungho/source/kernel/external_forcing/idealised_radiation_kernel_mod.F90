@@ -20,7 +20,12 @@ module idealised_radiation_kernel_mod
   use fs_continuity_mod, only: Wtheta
   use kernel_mod,      only: kernel_type
   use planet_config_mod, only: cp, gravity, p_zero, kappa
-  use external_forcing_config_mod, only: sensible_heat_flux
+  use external_forcing_config_mod, only: sensible_heat_flux,          &
+                                         fixed_surface_temperature,    &
+                                         theta_surface_forcing,        &
+                                         theta_surface_forcing_flux,   &
+                                         theta_surface_forcing_fixed
+  use log_mod,          only: log_event, log_scratch_space, LOG_LEVEL_ERROR
 
   implicit none
 
@@ -160,8 +165,22 @@ contains
       dtheta(map_wth(1) + k) = dtemp_dt * dt / exner
     end do
 
-    dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
-        (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner_in_wth(map_wth(1)))
+    exner = exner_in_wth(map_wth(1))
+
+    if (theta_surface_forcing == theta_surface_forcing_fixed) then
+      ! Hold the lowest layer's absolute temperature fixed at a prescribed
+      ! value by overwriting its increment with whatever is needed to reach
+      ! that target in one step, replacing the tropospheric cooling
+      ! contribution computed for this layer above.
+      dtheta(map_wth(1)) = fixed_surface_temperature / exner - theta(map_wth(1))
+    else if (theta_surface_forcing == theta_surface_forcing_flux) then
+      dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
+          (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner)
+    else
+      write(log_scratch_space, '(A)')                                      &
+          'idealised_radiation_kernel_mod: Unknown theta_surface_forcing option'
+      call log_event(log_scratch_space, LOG_LEVEL_ERROR)
+    end if
 
   end subroutine idealised_radiation_code
 

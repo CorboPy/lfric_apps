@@ -484,6 +484,7 @@ contains
           dz_in_wth => get_dz_at_wtheta( mesh%get_id() )
 
           call invoke( idealised_evaporation_kernel_type(dmv_forcing,       &
+                                                          mr_n(imr_v),      &
                                                           wetrho_in_wth,    &
                                                           dz_in_wth, dt) )
 

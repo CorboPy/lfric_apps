@@ -12,7 +12,25 @@ module idealised_radiation_kernel_mod_test
   implicit none
 
   private
-  public :: set_up, tear_down, test_all
+  public :: set_up, tear_down, test_flux_forcing, test_fixed_forcing
+
+  integer(kind=i_def), parameter :: nlayers = 3_i_def
+  integer(kind=i_def), parameter :: ndf_wth = 2_i_def
+  integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
+  real(kind=r_def),    parameter :: dt = 600.0_r_def
+
+  real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def
+  real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def
+  real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def
+  real(kind=r_def), parameter :: tol = 1.0e-12_r_def
+
+  integer(kind=i_def) :: map_wth(ndf_wth)
+  real(kind=r_def)    :: theta(undf_wth)
+  real(kind=r_def)    :: exner_in_wth(undf_wth)
+  real(kind=r_def)    :: temperature_mean(undf_wth)
+  real(kind=r_def)    :: mr_v_n(undf_wth), mr_cl_n(undf_wth), mr_r_n(undf_wth)
+  real(kind=r_def)    :: wetrho_in_wth(undf_wth), dz_wtheta(undf_wth)
+  real(kind=r_def)    :: cpv, cl
 
 contains
 
@@ -20,7 +38,9 @@ contains
   @before
   subroutine set_up()
 
-    use feign_config_mod, only : feign_planet_config, feign_external_forcing_config
+    use feign_config_mod, only : feign_planet_config
+    use driver_water_constants_mod, only : heat_capacity_h2o_vapour, &
+                                           heat_capacity_h2o
 
     implicit none
 
@@ -31,7 +51,17 @@ contains
                               p_zero=100000.0_r_def,   &
                               scaling_factor=1.0_r_def )
 
-    call feign_external_forcing_config( sensible_heat_flux=1000.0_r_def )
+    map_wth = (/ 1_i_def, 2_i_def /)
+    theta = (/ 300.0_r_def, 300.0_r_def, 275.0_r_def, 300.0_r_def /)
+    exner_in_wth = (/ 1.0_r_def, 0.9_r_def, 0.8_r_def, 0.7_r_def /)
+    temperature_mean = (/ 280.0_r_def, 240.0_r_def, 200.0_r_def, 190.0_r_def /)
+    mr_v_n = (/ 0.010_r_def, 0.008_r_def, 0.005_r_def, 0.002_r_def /)
+    mr_cl_n = 0.0_r_def
+    mr_r_n = 0.0_r_def
+    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
+    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
+    cpv = heat_capacity_h2o_vapour
+    cl = heat_capacity_h2o
 
   end subroutine set_up
 
@@ -48,62 +78,21 @@ contains
   end subroutine tear_down
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  @test
-  subroutine test_all()
+  !> Compute the tropospheric-cooling / stratospheric-nudging increment
+  !> profile only, i.e. without the surface-layer adjustment, against which
+  !> the kernel output is compared by both tests below.
+  subroutine background_dtheta(cpm, answer)
 
-    use, intrinsic :: iso_fortran_env, only : real64
-    use idealised_radiation_kernel_mod, only : idealised_radiation_code
     use planet_config_mod, only : cp, gravity, p_zero, kappa
-    use external_forcing_config_mod, only : sensible_heat_flux
-    use driver_water_constants_mod, only : heat_capacity_h2o_vapour, &
-                                           heat_capacity_h2o
 
     implicit none
 
-    integer(kind=i_def), parameter :: nlayers = 3_i_def
-    integer(kind=i_def), parameter :: ndf_wth = 2_i_def
-    integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
-    real(kind=r_def),    parameter :: dt = 600.0_r_def
+    real(kind=r_def), intent(out) :: cpm(0:nlayers)
+    real(kind=r_def), intent(out) :: answer(undf_wth)
 
-    real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def
-    real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def
-    real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def
-    real(kind=r_def), parameter :: tol = 1.0e-12_r_def
-
-    integer(kind=i_def) :: map_wth(ndf_wth)
-    real(kind=r_def)    :: theta(undf_wth)
-    real(kind=r_def)    :: exner_in_wth(undf_wth)
-    real(kind=r_def)    :: temperature_mean(undf_wth)
-    real(kind=r_def)    :: mr_v_n(undf_wth), mr_cl_n(undf_wth), mr_r_n(undf_wth)
-    real(kind=r_def)    :: wetrho_in_wth(undf_wth), dz_wtheta(undf_wth)
-    real(kind=r_def)    :: cpv, cl
-    real(kind=r_def)    :: cpm(0:nlayers)
-    real(kind=r_def)    :: dtheta(undf_wth)
-    real(kind=r_def)    :: answer(undf_wth)
     real(kind=r_def)    :: dtemp_dt_troposphere(0:nlayers)
     real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
-    real(kind=r_def)    :: use_tol
     integer(kind=i_def) :: k
-
-    map_wth = (/ 1_i_def, 2_i_def /)
-
-    theta = (/ 300.0_r_def, 300.0_r_def, 275.0_r_def, 300.0_r_def /)
-    exner_in_wth = (/ 1.0_r_def, 0.9_r_def, 0.8_r_def, 0.7_r_def /)
-    temperature_mean = (/ 280.0_r_def, 240.0_r_def, 200.0_r_def, 190.0_r_def /)
-    mr_v_n = (/ 0.010_r_def, 0.008_r_def, 0.005_r_def, 0.002_r_def /)
-    mr_cl_n = 0.0_r_def
-    mr_r_n = 0.0_r_def
-    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
-    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
-    cpv = heat_capacity_h2o_vapour
-    cl = heat_capacity_h2o
-    dtheta = 0.0_r_def
-
-    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
-                                   temperature_mean,                              &
-                                   mr_v_n, mr_cl_n, mr_r_n,                       &
-                                   wetrho_in_wth, dz_wtheta,                      &
-                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
 
     do k = 0, nlayers
       cpm(k) = cp + mr_v_n(map_wth(1) + k) * cpv &
@@ -129,6 +118,41 @@ contains
          tropopause_temperature) / nudging_timescale) * dt /                       &
       exner_in_wth(map_wth(1) + 3_i_def)
 
+  end subroutine background_dtheta
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> With the 'flux' surface treatment, the surface layer increment adds a
+  !> prescribed sensible heat flux term on top of the tropospheric cooling.
+  @test
+  subroutine test_flux_forcing()
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use idealised_radiation_kernel_mod, only : idealised_radiation_code
+    use feign_config_mod, only : feign_external_forcing_config
+    use external_forcing_config_mod, only : sensible_heat_flux, &
+                                            theta_surface_forcing_flux
+
+    implicit none
+
+    real(kind=r_def) :: dtheta(undf_wth)
+    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: cpm(0:nlayers)
+    real(kind=r_def) :: use_tol
+    integer(kind=i_def) :: k
+
+    call feign_external_forcing_config(                                    &
+        theta_surface_forcing=theta_surface_forcing_flux,                  &
+        sensible_heat_flux=1000.0_r_def )
+
+    dtheta = 0.0_r_def
+    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
+                                   temperature_mean,                              &
+                                   mr_v_n, mr_cl_n, mr_r_n,                       &
+                                   wetrho_in_wth, dz_wtheta,                      &
+                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
+
+    call background_dtheta(cpm, answer)
+
     answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /          &
         (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *              &
          exner_in_wth(map_wth(1)))
@@ -142,6 +166,54 @@ contains
       @assertEqual( answer(map_wth(1) + k), dtheta(map_wth(1) + k), use_tol )
     end do
 
-  end subroutine test_all
+  end subroutine test_flux_forcing
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> With the 'fixed' surface treatment, the surface layer increment is
+  !> overwritten so that the resulting absolute temperature equals the
+  !> prescribed target exactly, regardless of the tropospheric cooling term.
+  @test
+  subroutine test_fixed_forcing()
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use idealised_radiation_kernel_mod, only : idealised_radiation_code
+    use feign_config_mod, only : feign_external_forcing_config
+    use external_forcing_config_mod, only : theta_surface_forcing_fixed
+
+    implicit none
+
+    real(kind=r_def), parameter :: target_temperature = 290.0_r_def
+
+    real(kind=r_def) :: dtheta(undf_wth)
+    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: cpm(0:nlayers)
+    real(kind=r_def) :: use_tol
+    integer(kind=i_def) :: k
+
+    call feign_external_forcing_config(                                    &
+        theta_surface_forcing=theta_surface_forcing_fixed,                 &
+        fixed_surface_temperature=target_temperature )
+
+    dtheta = 0.0_r_def
+    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
+                                   temperature_mean,                              &
+                                   mr_v_n, mr_cl_n, mr_r_n,                       &
+                                   wetrho_in_wth, dz_wtheta,                      &
+                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
+
+    call background_dtheta(cpm, answer)
+
+    answer(map_wth(1)) = target_temperature / exner_in_wth(map_wth(1)) - theta(map_wth(1))
+
+    do k = 0, nlayers
+      if (r_def == real64) then
+        use_tol = tol
+      else
+        use_tol = 10.0_r_def * spacing(answer(map_wth(1) + k))
+      end if
+      @assertEqual( answer(map_wth(1) + k), dtheta(map_wth(1) + k), use_tol )
+    end do
+
+  end subroutine test_fixed_forcing
 
 end module idealised_radiation_kernel_mod_test

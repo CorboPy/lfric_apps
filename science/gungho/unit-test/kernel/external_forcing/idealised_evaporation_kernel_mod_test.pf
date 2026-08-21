@@ -12,7 +12,19 @@ module idealised_evaporation_kernel_mod_test
   implicit none
 
   private
-  public :: set_up, tear_down, test_all
+  public :: set_up, tear_down, test_flux_forcing, test_fixed_forcing
+
+  integer(kind=i_def), parameter :: nlayers = 3_i_def
+  integer(kind=i_def), parameter :: ndf_wth = 2_i_def
+  integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
+  real(kind=r_def),    parameter :: dt = 600.0_r_def
+
+  real(kind=r_def), parameter :: tol = 1.0e-12_r_def
+
+  integer(kind=i_def) :: map_wth(ndf_wth)
+  real(kind=r_def)    :: mr_v_n(undf_wth)
+  real(kind=r_def)    :: wetrho_in_wth(undf_wth)
+  real(kind=r_def)    :: dz_wtheta(undf_wth)
 
 contains
 
@@ -20,11 +32,13 @@ contains
   @before
   subroutine set_up()
 
-    use feign_config_mod, only : feign_external_forcing_config
-
     implicit none
 
-    call feign_external_forcing_config( evaporative_heat_flux=200.0_r_def )
+    map_wth = (/ 1_i_def, 2_i_def /)
+
+    mr_v_n = (/ 0.010_r_def, 0.008_r_def, 0.005_r_def, 0.002_r_def /)
+    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
+    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
 
   end subroutine set_up
 
@@ -41,41 +55,35 @@ contains
   end subroutine tear_down
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> With the 'flux' surface treatment, the surface layer increment is a
+  !> prescribed evaporative heat flux term.
   @test
-  subroutine test_all()
+  subroutine test_flux_forcing()
 
     use, intrinsic :: iso_fortran_env, only : real64
     use idealised_evaporation_kernel_mod, only : idealised_evaporation_code
     use driver_water_constants_mod, only : latent_heat_h2o_condensation
-    use external_forcing_config_mod, only : evaporative_heat_flux
+    use feign_config_mod, only : feign_external_forcing_config
+    use external_forcing_config_mod, only : evaporative_heat_flux, &
+                                            vapour_surface_forcing_flux
 
     implicit none
 
-    integer(kind=i_def), parameter :: nlayers = 3_i_def
-    integer(kind=i_def), parameter :: ndf_wth = 2_i_def
-    integer(kind=i_def), parameter :: undf_wth = nlayers + 1_i_def
-    real(kind=r_def),    parameter :: dt = 600.0_r_def
-
-    real(kind=r_def), parameter :: tol = 1.0e-12_r_def
-
-    integer(kind=i_def) :: map_wth(ndf_wth)
-    real(kind=r_def)    :: wetrho_in_wth(undf_wth)
-    real(kind=r_def)    :: dz_wtheta(undf_wth)
-    real(kind=r_def)    :: dmv_forcing(undf_wth)
-    real(kind=r_def)    :: answer(undf_wth)
-    real(kind=r_def)    :: use_tol
+    real(kind=r_def) :: dmv_forcing(undf_wth)
+    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: use_tol
     integer(kind=i_def) :: k
 
-    map_wth = (/ 1_i_def, 2_i_def /)
+    call feign_external_forcing_config(                                    &
+        vapour_surface_forcing=vapour_surface_forcing_flux,                &
+        evaporative_heat_flux=200.0_r_def )
 
-    wetrho_in_wth = (/ 1.2_r_def, 1.1_r_def, 1.0_r_def, 0.9_r_def /)
-    dz_wtheta = (/ 50.0_r_def, 100.0_r_def, 100.0_r_def, 100.0_r_def /)
     ! Pre-populate with non-zero data to check the kernel overwrites the
     ! whole column rather than only incrementing the surface value.
     dmv_forcing = 1.0_r_def
 
-    call idealised_evaporation_code( nlayers, dmv_forcing,        &
-                                     wetrho_in_wth, dz_wtheta, dt, &
+    call idealised_evaporation_code( nlayers, dmv_forcing, mr_v_n,   &
+                                     wetrho_in_wth, dz_wtheta, dt,   &
                                      ndf_wth, undf_wth, map_wth )
 
     answer = 0.0_r_def
@@ -92,6 +100,53 @@ contains
       @assertEqual( answer(map_wth(1) + k), dmv_forcing(map_wth(1) + k), use_tol )
     end do
 
-  end subroutine test_all
+  end subroutine test_flux_forcing
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> With the 'fixed' surface treatment, the surface layer increment is
+  !> overwritten so that the resulting mixing ratio equals the prescribed
+  !> target exactly.
+  @test
+  subroutine test_fixed_forcing()
+
+    use, intrinsic :: iso_fortran_env, only : real64
+    use idealised_evaporation_kernel_mod, only : idealised_evaporation_code
+    use feign_config_mod, only : feign_external_forcing_config
+    use external_forcing_config_mod, only : vapour_surface_forcing_fixed
+
+    implicit none
+
+    real(kind=r_def), parameter :: target_mixing_ratio = 0.012_r_def
+
+    real(kind=r_def) :: dmv_forcing(undf_wth)
+    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: use_tol
+    integer(kind=i_def) :: k
+
+    call feign_external_forcing_config(                                    &
+        vapour_surface_forcing=vapour_surface_forcing_fixed,               &
+        fixed_surface_vapour_mixing_ratio=target_mixing_ratio )
+
+    ! Pre-populate with non-zero data to check the kernel overwrites the
+    ! whole column rather than only incrementing the surface value.
+    dmv_forcing = 1.0_r_def
+
+    call idealised_evaporation_code( nlayers, dmv_forcing, mr_v_n,   &
+                                     wetrho_in_wth, dz_wtheta, dt,   &
+                                     ndf_wth, undf_wth, map_wth )
+
+    answer = 0.0_r_def
+    answer(map_wth(1)) = target_mixing_ratio - mr_v_n(map_wth(1))
+
+    do k = 0, nlayers
+      if (r_def == real64) then
+        use_tol = tol
+      else
+        use_tol = 10.0_r_def * spacing(max(abs(answer(map_wth(1) + k)), 1.0_r_def))
+      end if
+      @assertEqual( answer(map_wth(1) + k), dmv_forcing(map_wth(1) + k), use_tol )
+    end do
+
+  end subroutine test_fixed_forcing
 
 end module idealised_evaporation_kernel_mod_test
