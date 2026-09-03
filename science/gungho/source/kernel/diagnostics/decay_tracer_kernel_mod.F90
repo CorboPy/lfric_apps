@@ -83,13 +83,15 @@ subroutine decay_tracer_code( nlayers,                              &
 
   ! Internal variables
   integer(kind=i_def) :: k
-  integer(kind=i_def) :: df
 
-  ! Wtheta holds nlayers+1 levels, indexed 0 (the ground) to nlayers
+  ! Wtheta holds nlayers+1 levels in a contiguous column, running from
+  ! map_wt(1) at the ground up to map_wt(1)+nlayers at the model top.
+  ! Note a Wtheta cell has ndf_wt = 2 DoFs, the bottom and top of the cell,
+  ! with map_wt(2) == map_wt(1) + 1. Looping over the DoFs of a cell as well
+  ! as over k would therefore set each level twice and overshoot the
+  ! requested reset_level by one level.
   do k = 0, min(reset_level, nlayers+1)-1
-    do df = 1, ndf_wt
-      decay_tracer( map_wt(df) + k ) = surface_value
-    end do
+    decay_tracer( map_wt(1) + k ) = surface_value
   end do
 
 end subroutine decay_tracer_code

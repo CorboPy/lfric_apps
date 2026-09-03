@@ -22,9 +22,11 @@ module decay_tracer_kernel_mod_test
 
     implicit none
 
-    ! Wtheta holds nlayers+1 levels, indexed 0 (the ground) to nlayers
+    ! Wtheta holds nlayers+1 levels, indexed 0 (the ground) to nlayers.
+    ! A lowest order Wtheta cell has two DoFs, the bottom and top of the
+    ! cell, so ndf_wt is 2 and map_wt(2) is map_wt(1) + 1
     integer(i_def), parameter :: nlayers = 9
-    integer(i_def), parameter :: ndf_wt = 1
+    integer(i_def), parameter :: ndf_wt = 2
     integer(i_def), parameter :: undf_wt = nlayers + 1
     integer(i_def), dimension(ndf_wt) :: map_wt
     real(r_def), dimension(undf_wt) :: decay_tracer
@@ -36,7 +38,7 @@ module decay_tracer_kernel_mod_test
     real(r_def), parameter :: tol = 1.0e-12_r_def
     real(r_def) :: answer(undf_wt)
 
-    map_wt(:) = 1
+    map_wt(:) = (/1, 2/)
 
     decay_tracer(1:undf_wt) = decayed_value
 
@@ -48,8 +50,10 @@ module decay_tracer_kernel_mod_test
                             undf_wt,                              &
                             map_wt )
 
-    ! The lowest decay_tracer_reset_level levels are held at surface_value,
-    ! the levels above are left untouched by the kernel
+    ! Exactly the lowest decay_tracer_reset_level levels are held at
+    ! surface_value, the levels above are left untouched by the kernel.
+    ! Looping over the cell DoFs as well as over k would wrongly set a
+    ! fourth level here
     answer = (/1.0_r_def,  1.0_r_def,  1.0_r_def,  0.25_r_def, &
                0.25_r_def, 0.25_r_def, 0.25_r_def, 0.25_r_def, &
                0.25_r_def, 0.25_r_def/)
@@ -65,7 +69,7 @@ module decay_tracer_kernel_mod_test
     implicit none
 
     integer(i_def), parameter :: nlayers = 3
-    integer(i_def), parameter :: ndf_wt = 1
+    integer(i_def), parameter :: ndf_wt = 2
     integer(i_def), parameter :: undf_wt = nlayers + 1
     integer(i_def), dimension(ndf_wt) :: map_wt
     real(r_def), dimension(undf_wt) :: decay_tracer
@@ -76,7 +80,7 @@ module decay_tracer_kernel_mod_test
     real(r_def), parameter :: surface_value = 2.5_r_def
     real(r_def), parameter :: tol = 1.0e-12_r_def
 
-    map_wt(:) = 1
+    map_wt(:) = (/1, 2/)
 
     decay_tracer(1:undf_wt) = 0.0_r_def
 
