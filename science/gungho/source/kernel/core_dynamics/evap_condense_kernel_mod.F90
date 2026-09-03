@@ -21,7 +21,7 @@ module evap_condense_kernel_mod
   use argument_mod,                only: arg_type, GH_SCALAR,                  &
                                          GH_FIELD, GH_WRITE, GH_READ,          &
                                          CELL_COLUMN, GH_REAL
-  use constants_mod,               only: r_def, i_def, r_second
+  use constants_mod,               only: r_def, i_def
   use driver_water_constants_mod,  only: Lv0 => latent_heat_h2o_condensation
   use fs_continuity_mod,           only: Wtheta
   use kernel_mod,                  only: kernel_type
@@ -130,7 +130,10 @@ contains
     real(kind=r_def), intent(in)                              :: Rd, Rv, cpd,  &
                                                                  cpv, cl,      &
                                                                  p_zero 
-    real(kind=r_second), intent(in)                           :: dt             !> ToDo: figure out fast vs slow dt
+    ! dt must be r_def to match the GH_SCALAR/GH_REAL metadata above: the
+    ! calling algorithms hold dt as r_def, so declaring it r_second here only
+    ! happens to work in 64-bit builds where r_def and r_second coincide.
+    real(kind=r_def), intent(in)                              :: dt             !> ToDo: figure out fast vs slow dt
     real(kind=r_def), dimension(undf_wtheta), intent(in)      :: dz_wtheta
     integer(kind=i_def), dimension(ndf_wtheta), intent(in)    :: map_wtheta
 
