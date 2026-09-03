@@ -41,7 +41,8 @@ module create_gungho_prognostics_mod
   use initialization_config_mod,      only: init_option,               &
                                             init_option_checkpoint_dump
   use io_config_mod,                  only: checkpoint_read, checkpoint_write
-  use transport_config_mod,           only : transport_ageofair
+  use transport_config_mod,           only : transport_ageofair, &
+                                             transport_decay_tracer
   use clock_mod,                      only : clock_type
   implicit none
 
@@ -155,6 +156,12 @@ contains
       call proc%apply(make_spec('ageofair', main%none, &
         W3, adv_coll=adv%last_con, order_h=ord_h, order_v=ord_v, ckp=.true., &
         legacy=legacy))
+    end if
+
+    if (transport_decay_tracer) then
+      call proc%apply(make_spec('decay_tracer', main%none, &
+        Wtheta, adv_coll=adv%last_con, order_h=ord_h, order_v=ord_v, &
+        ckp=.true., legacy=legacy))
     end if
   end subroutine process_gungho_prognostics
 

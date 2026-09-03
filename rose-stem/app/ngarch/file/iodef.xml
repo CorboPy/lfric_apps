@@ -42,6 +42,7 @@
         <field id="checkpoint_moist_dyn_total_mass_ref" name="moist_dyn_total_mass_ref" long_name="moist_dyn_total_mass_ref" unit="1" domain_ref="checkpoint_Wtheta" />
         <field id="checkpoint_moist_dyn_water_ref" name="moist_dyn_water_ref" long_name="moist_dyn_water_ref" unit="1" domain_ref="checkpoint_Wtheta" />
         <field id="checkpoint_ageofair" name="ageofair" long_name="ageofair" unit="s" domain_ref="checkpoint_W3" />
+        <field id="checkpoint_decay_tracer" name="decay_tracer" long_name="surface_source_decaying_passive_tracer" unit="1" domain_ref="checkpoint_Wtheta" />
       </field_group>
 
       <!-- Restart group -->
@@ -63,6 +64,7 @@
         <field id="restart_moist_dyn_total_mass_ref" name="moist_dyn_total_mass_ref" long_name="moist_dyn_total_mass_ref" unit="1" domain_ref="restart_Wtheta" />
         <field id="restart_moist_dyn_water_ref" name="moist_dyn_water_ref" long_name="moist_dyn_water_ref" unit="1" domain_ref="restart_Wtheta" />
         <field id="restart_ageofair" name="ageofair" long_name="ageofair" unit="s" domain_ref="restart_W3" />
+        <field id="restart_decay_tracer" name="decay_tracer" long_name="surface_source_decaying_passive_tracer" unit="1" domain_ref="restart_Wtheta" />
         <field id="restart_conv_prog_dtheta" name="conv_prog_dtheta" long_name="convective_prognostic_dtheta" unit="K" grid_ref="restart_Wtheta" />
       </field_group>
 	  </field_definition>

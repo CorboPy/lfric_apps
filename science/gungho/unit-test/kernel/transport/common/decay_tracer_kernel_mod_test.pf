@@ -1,0 +1,95 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+
+!> Test the decaying tracer kernel which holds the lower model levels at a
+!> fixed surface concentration.
+module decay_tracer_kernel_mod_test
+
+  use constants_mod, only : i_def, r_def
+  use funit
+
+  implicit none
+
+  contains
+
+  @test
+  subroutine test_all()
+
+    use decay_tracer_kernel_mod, only: decay_tracer_code
+
+    implicit none
+
+    ! Wtheta holds nlayers+1 levels, indexed 0 (the ground) to nlayers
+    integer(i_def), parameter :: nlayers = 9
+    integer(i_def), parameter :: ndf_wt = 1
+    integer(i_def), parameter :: undf_wt = nlayers + 1
+    integer(i_def), dimension(ndf_wt) :: map_wt
+    real(r_def), dimension(undf_wt) :: decay_tracer
+
+    integer(i_def), parameter :: decay_tracer_reset_level = 3
+
+    real(r_def), parameter :: decayed_value = 0.25_r_def
+    real(r_def), parameter :: surface_value = 1.0_r_def
+    real(r_def), parameter :: tol = 1.0e-12_r_def
+    real(r_def) :: answer(undf_wt)
+
+    map_wt(:) = 1
+
+    decay_tracer(1:undf_wt) = decayed_value
+
+    call decay_tracer_code( nlayers,                              &
+                            decay_tracer,                         &
+                            surface_value,                        &
+                            decay_tracer_reset_level,             &
+                            ndf_wt,                               &
+                            undf_wt,                              &
+                            map_wt )
+
+    ! The lowest decay_tracer_reset_level levels are held at surface_value,
+    ! the levels above are left untouched by the kernel
+    answer = (/1.0_r_def,  1.0_r_def,  1.0_r_def,  0.25_r_def, &
+               0.25_r_def, 0.25_r_def, 0.25_r_def, 0.25_r_def, &
+               0.25_r_def, 0.25_r_def/)
+    @assertEqual( answer, decay_tracer, tol )
+
+  end subroutine test_all
+
+  @test
+  subroutine test_reset_level_capped_at_top_of_column()
+
+    use decay_tracer_kernel_mod, only: decay_tracer_code
+
+    implicit none
+
+    integer(i_def), parameter :: nlayers = 3
+    integer(i_def), parameter :: ndf_wt = 1
+    integer(i_def), parameter :: undf_wt = nlayers + 1
+    integer(i_def), dimension(ndf_wt) :: map_wt
+    real(r_def), dimension(undf_wt) :: decay_tracer
+
+    ! A reset level beyond the top of the model must not write out of bounds
+    integer(i_def), parameter :: decay_tracer_reset_level = 99
+
+    real(r_def), parameter :: surface_value = 2.5_r_def
+    real(r_def), parameter :: tol = 1.0e-12_r_def
+
+    map_wt(:) = 1
+
+    decay_tracer(1:undf_wt) = 0.0_r_def
+
+    call decay_tracer_code( nlayers,                              &
+                            decay_tracer,                         &
+                            surface_value,                        &
+                            decay_tracer_reset_level,             &
+                            ndf_wt,                               &
+                            undf_wt,                              &
+                            map_wt )
+
+    @assertEqual( spread(surface_value, 1, undf_wt), decay_tracer, tol )
+
+  end subroutine test_reset_level_capped_at_top_of_column
+
+end module decay_tracer_kernel_mod_test

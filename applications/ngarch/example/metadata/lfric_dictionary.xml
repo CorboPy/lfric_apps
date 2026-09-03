@@ -13,6 +13,7 @@
   <field id="m_s" name="m_s" long_name="m_s" unit="kg kg-1" grid_ref="full_level_face_grid" />
   <field id="m_g" name="m_g" long_name="m_g" unit="kg kg-1" grid_ref="full_level_face_grid" />
   <field id="ageofair" name="ageofair" long_name="ageofair" unit="s" grid_ref="half_level_face_grid" />
+  <field id="decay_tracer" name="decay_tracer" long_name="surface_source_decaying_passive_tracer" unit="1" grid_ref="full_level_face_grid" />
   <field id="theta_ref" name="theta_ref" long_name="air_potential_temperature_ref" standard_name="air_potential_temperature_ref" unit="K" grid_ref="full_level_face_grid" />
   <field id="rho_ref" name="rho_ref" long_name="air_density_ref" standard_name="air_density_ref" unit="kg m-3" grid_ref="half_level_face_grid" />
   <field id="exner_ref" name="exner_ref" long_name="exner_pressure_ref" unit="1" grid_ref="half_level_face_grid" />

@@ -1,0 +1,105 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+
+!> @brief Algorithm to update the passive decaying tracer field
+!> @details The tracer is held at a fixed concentration in the levels nearest
+!>          the surface, which acts as its only source, and decays
+!>          exponentially towards zero everywhere with a prescribed timescale.
+!>          Transport of the tracer is handled generically as part of the
+!>          conservatively transported tracer collection, so this algorithm
+!>          only applies the local source and sink terms.
+module decay_tracer_alg_mod
+
+  use clock_mod,                only: clock_type
+  use constants_mod,            only: r_def
+  use field_mod,                only: field_type
+  use log_mod,                  only: log_event, log_scratch_space, &
+                                      LOG_LEVEL_ERROR
+  use timing_mod,               only: start_timing, stop_timing, &
+                                      tik, LPROF
+  use decay_tracer_kernel_mod,  only: decay_tracer_kernel_type
+  use transport_config_mod,     only: decay_tracer_reset_level,   &
+                                      decay_tracer_surface_value, &
+                                      decay_tracer_timescale
+
+  implicit none
+
+  private
+
+  public  :: init_decay_tracer
+  public  :: decay_tracer_update
+
+contains
+
+  !===========================================================================!
+  !> @details This routine initialises the decaying tracer field. The tracer
+  !>          is set to zero away from the surface, so that a new run starts
+  !>          from a tracer-free atmosphere and spins up from the fixed
+  !>          surface concentration.
+  !> @param[in,out] decay_tracer   Decaying tracer field
+  subroutine init_decay_tracer(decay_tracer)
+
+    implicit none
+
+    type(field_type), intent(inout) :: decay_tracer
+
+    if ( decay_tracer_timescale <= 0.0_r_def ) then
+      write( log_scratch_space, '(A,E16.8)' )                                &
+          'decay_tracer_timescale must be greater than zero, but is ',       &
+          decay_tracer_timescale
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+
+    if ( decay_tracer_reset_level < 1 ) then
+      write( log_scratch_space, '(A,I0)' )                                   &
+          'decay_tracer_reset_level must be at least 1, but is ',            &
+          decay_tracer_reset_level
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+
+    call invoke( setval_c( decay_tracer, 0.0_r_def ),                        &
+                 ! Set levels nearest the surface to the fixed concentration
+                 decay_tracer_kernel_type( decay_tracer,                     &
+                                           decay_tracer_surface_value,       &
+                                           decay_tracer_reset_level ) )
+
+  end subroutine init_decay_tracer
+
+  !===========================================================================!
+  !> @details Algorithm to update the passive decaying tracer field. The
+  !>          tracer is decayed over one model timestep and the levels nearest
+  !>          the surface are then returned to the fixed concentration.
+  !> @param[in,out]     decay_tracer        Decaying tracer field
+  !> @param[in]         clock               The model clock
+  subroutine decay_tracer_update( decay_tracer, clock )
+
+    implicit none
+
+    type(field_type), intent(inout) :: decay_tracer
+    class(clock_type), intent(in)   :: clock
+
+    real(r_def)   :: dt
+    real(r_def)   :: decay_factor
+    integer(tik)  :: id
+
+    if ( LPROF ) call start_timing( id, 'dynamics.decay_tracer' )
+
+    dt = real(clock%get_seconds_per_step(), r_def)
+
+    ! Analytic solution of dX/dt = -X/tau over one timestep
+    decay_factor = exp( -dt / decay_tracer_timescale )
+
+    call invoke( inc_a_times_X( decay_factor, decay_tracer ),                &
+                 ! Return levels nearest the surface to the fixed concentration
+                 decay_tracer_kernel_type( decay_tracer,                     &
+                                           decay_tracer_surface_value,       &
+                                           decay_tracer_reset_level ) )
+
+    if ( LPROF ) call stop_timing( id, 'dynamics.decay_tracer' )
+
+  end subroutine decay_tracer_update
+
+end module decay_tracer_alg_mod

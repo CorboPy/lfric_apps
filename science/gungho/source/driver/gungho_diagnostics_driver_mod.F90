@@ -51,7 +51,8 @@ module gungho_diagnostics_driver_mod
   use io_config_mod,             only : use_xios_io, write_fluxes
   use timer_mod,                 only : timer
   use timing_mod,                only : start_timing, stop_timing, tik, LPROF
-  use transport_config_mod,      only : transport_ageofair
+  use transport_config_mod,      only : transport_ageofair, &
+                                        transport_decay_tracer
   use driver_modeldb_mod,        only : modeldb_type
 
 #ifdef UM_PHYSICS
@@ -113,6 +114,7 @@ contains
     type(field_type), pointer :: v_in_w2h
     type(field_type), pointer :: w_in_wth
     type(field_type), pointer :: ageofair
+    type(field_type), pointer :: decay_tracer
     type(field_type), pointer :: exner_in_wth
     type(field_type), pointer :: dA
 
@@ -195,6 +197,12 @@ contains
     if (transport_ageofair) then
       call con_tracer_last_outer%get_field('ageofair',ageofair)
       call write_scalar_diagnostic('ageofair', ageofair, &
+                                   modeldb%clock, mesh, nodal_output_on_w3)
+    end if
+
+    if (transport_decay_tracer) then
+      call con_tracer_last_outer%get_field('decay_tracer',decay_tracer)
+      call write_scalar_diagnostic('decay_tracer', decay_tracer, &
                                    modeldb%clock, mesh, nodal_output_on_w3)
     end if
 

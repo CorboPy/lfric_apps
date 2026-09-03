@@ -59,7 +59,8 @@ module semi_implicit_timestep_alg_mod
                                         outer_iterations, inner_iterations,   &
                                         spinup_alpha
   use transport_config_mod,       only: cheap_update, &
-                                        transport_ageofair
+                                        transport_ageofair, &
+                                        transport_decay_tracer
   use derived_config_mod,         only: bundle_size
   use boundaries_config_mod,      only: limited_area, blend_frequency, &
                                         blend_frequency_inner, &
@@ -148,6 +149,7 @@ module semi_implicit_timestep_alg_mod
 
   use timing_mod,                 only: start_timing, stop_timing, tik, LPROF
   use ageofair_alg_mod,           only: ageofair_update
+  use decay_tracer_alg_mod,       only: decay_tracer_update
 
   implicit none
 
@@ -628,6 +630,7 @@ contains
     real(kind=r_def) :: cast_dt
 
     type(field_type), pointer :: ageofair
+    type(field_type), pointer :: decay_tracer
 
     type(operator_type), pointer :: mm_wt
     type(operator_type), pointer :: mm_vel
@@ -1077,6 +1080,11 @@ contains
     if (transport_ageofair) then
       call con_tracer_last_outer%get_field('ageofair', ageofair)
       call ageofair_update(ageofair, model_clock)
+    end if
+
+    if (transport_decay_tracer) then
+      call con_tracer_last_outer%get_field('decay_tracer', decay_tracer)
+      call decay_tracer_update(decay_tracer, model_clock)
     end if
 
     !--------------------------------------------------------------------

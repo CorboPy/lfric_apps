@@ -87,7 +87,9 @@ module gungho_init_fields_mod
   use init_physics_prognostics_alg_mod,   only : init_physics_prognostics_alg
   use derived_config_mod,                 only : l_esm_couple
   use ageofair_alg_mod,                   only : init_ageofair
-  use transport_config_mod,               only : transport_ageofair
+  use decay_tracer_alg_mod,               only : init_decay_tracer
+  use transport_config_mod,               only : transport_ageofair, &
+                                                 transport_decay_tracer
 #ifdef COUPLED
   use coupler_mod,                      only : zero_coupling_send_fields
 #endif
@@ -553,6 +555,7 @@ subroutine create_model_data( modeldb,      &
     type( field_type ), pointer :: exner => null()
     type( field_type ), pointer :: accumulated_fluxes    => null()
     type( field_type ), pointer :: ageofair => null()
+    type( field_type ), pointer :: decay_tracer => null()
 
     type( io_value_type ),               pointer :: temp_corr_io_value
     type( io_value_type ),               pointer :: random_seed_io_value
@@ -670,6 +673,13 @@ subroutine create_model_data( modeldb,      &
       ! If picking up from a checkpoint, this will be overwritten
       call con_tracer_last_outer%get_field('ageofair', ageofair)
       call init_ageofair( ageofair )
+    end if
+
+    if ( transport_decay_tracer ) then
+      ! The decaying tracer needs initialising in case this is a new run
+      ! If picking up from a checkpoint, this will be overwritten
+      call con_tracer_last_outer%get_field('decay_tracer', decay_tracer)
+      call init_decay_tracer( decay_tracer )
     end if
 
     moisture_fields => modeldb%fields%get_field_collection("moisture_fields")
