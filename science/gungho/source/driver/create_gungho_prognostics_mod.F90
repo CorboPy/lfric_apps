@@ -158,10 +158,18 @@ contains
         legacy=legacy))
     end if
 
+    ! Held in Wtheta (full levels) so that it is co-located with w_in_wth and
+    ! wetrho_in_wth, which the tracer is combined with when diagnosing Kzz.
+    ! Note this deliberately does not use legacy checkpointing: the legacy
+    ! route maps field names to the checkpoint_W3 / checkpoint_Wtheta domains
+    ! via a hard-coded list in lfric_core (handle_legacy_fields in
+    ! lfric_xios_metafile_mod), which knows nothing of this field. Leaving
+    ! legacy unset takes the modern route, which picks the grid up from the
+    ! grid_ref in lfric_dictionary.xml instead.
     if (transport_decay_tracer) then
       call proc%apply(make_spec('decay_tracer', main%none, &
         Wtheta, adv_coll=adv%last_con, order_h=ord_h, order_v=ord_v, &
-        ckp=.true., legacy=legacy))
+        ckp=.true.))
     end if
   end subroutine process_gungho_prognostics
 
