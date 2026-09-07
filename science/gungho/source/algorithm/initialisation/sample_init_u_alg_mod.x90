@@ -97,6 +97,11 @@ contains
       call invoke( setval_c( u_in_w3, profile_data_u(1) ) )
       call invoke( setval_c( v_in_w3, profile_data_v(1) ) )
     else
+      if (allocated(profile_data)) deallocate(profile_data)
+      if (allocated(profile_heights)) deallocate(profile_heights)
+      allocate(profile_data(profile_size))
+      allocate(profile_heights(profile_size))
+
       profile_heights(1:profile_size) = profile_heights_uv(1:profile_size)
       profile_data(1:profile_size) = profile_data_u(1:profile_size)
       call invoke( setval_c( u_in_w3, rmdi ),                      &
@@ -112,12 +117,20 @@ contains
     if ( profile_size == 1) then
       call invoke( setval_c( w_in_wth, profile_data_w(1) ) )
     else
+      if (allocated(profile_data)) deallocate(profile_data)
+      if (allocated(profile_heights)) deallocate(profile_heights)
+      allocate(profile_data(profile_size))
+      allocate(profile_heights(profile_size))
+
       profile_heights(1:profile_size) = profile_heights_w(1:profile_size)
       profile_data(1:profile_size) = profile_data_w(1:profile_size)
       call invoke( setval_c( w_in_wth, rmdi ),                       &
                    profile_interp_kernel_type( w_in_wth, height_wth, &
                                                profile_extrap ) )
     end if
+
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
 
     call set_wind( u, u_in_w3, v_in_w3, w_in_wth )
 
