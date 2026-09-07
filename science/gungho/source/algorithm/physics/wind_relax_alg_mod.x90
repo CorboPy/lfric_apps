@@ -136,9 +136,11 @@ contains
   call map_physics_winds( u_in_w3, v_in_w3, w_in_w3, u )
 
   if ( number_times == 1 ) then
-  ! This is what applies for a constant relaxation profile
-    u_wind_relax_now(:) = u_wind_relax_data(:)
-    v_wind_relax_now(:) = v_wind_relax_data(:)
+  ! This is what applies for a constant relaxation profile.
+  ! The namelist arrays are allocated to max_array_size by the generated
+  ! configuration loader, so take only the leading number_heights entries.
+    u_wind_relax_now(:) = u_wind_relax_data(1:number_heights)
+    v_wind_relax_now(:) = v_wind_relax_data(1:number_heights)
   else
   ! Interpolate the relaxation time series to current time
     call prof_temporal_interp( time_now, number_heights, number_times, times, &
@@ -191,6 +193,10 @@ contains
   else
     ! Specified relaxation profile with height
     profile_size = number_heights
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
+    allocate(profile_data(profile_size))
+    allocate(profile_heights(profile_size))
     ! Copy over the u-wind relaxation profile into module global profile_data
     ! needed for the interpolation kernel
     profile_data( 1:profile_size ) = u_wind_relax_now( 1:profile_size )
@@ -232,6 +238,9 @@ contains
     call set_wind( du_relaxation_forcing, du_relax, dv_relax, dw_relax)
     ! Add relaxation increments to forcing
     call invoke( inc_X_plus_Y( du_forcing, du_relaxation_forcing ) )
+
+    if (allocated(profile_data)) deallocate(profile_data)
+    if (allocated(profile_heights)) deallocate(profile_heights)
 
   end if
 
