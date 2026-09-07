@@ -81,9 +81,9 @@ contains
   logical( kind=l_def )       :: profile_extrap
 
   ! Horizontal winds may need to be assigned as relaxation targets
-  type( field_type ), target  :: u_in_w3 
-  type( field_type ), target  :: v_in_w3 
-  type( field_type )          :: w_in_w3 
+  type( field_type ), target  :: u_in_w3
+  type( field_type ), target  :: v_in_w3
+  type( field_type )          :: w_in_w3
 
   ! w2 field for relaxation increments
   type( field_type )          :: du_relaxation_forcing
@@ -108,7 +108,7 @@ contains
   dt_rdef = real( dt, kind=r_def )
 
   relaxation_coeff = dt_rdef / timescale
-  
+
   mesh => du_forcing%get_mesh()
 
   call du_relaxation_forcing%initialise( vector_space = u%get_function_space() )
@@ -167,7 +167,7 @@ contains
     ! Set the targeted relaxation field to be the horizontal mean
     ! u_relax_target => u_horiz_mean
     ! v_relax_target => v_horiz_mean
-  ! else 
+  ! else
     ! Set the targeted relaxation field to be the physical winds
     ! This imposes strict local relaxation
   !  u_relax_target => u_in_w3
@@ -231,7 +231,7 @@ contains
     ! Transform the relaxation increments back to w2 space
     call set_wind( du_relaxation_forcing, du_relax, dv_relax, dw_relax)
     ! Add relaxation increments to forcing
-    call invoke( inc_X_plus_Y( du_forcing, du_relaxation_forcing ) ) 
+    call invoke( inc_X_plus_Y( du_forcing, du_relaxation_forcing ) )
 
   end if
 
