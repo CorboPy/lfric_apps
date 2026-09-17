@@ -251,13 +251,19 @@ subroutine vert_balance_code( nlayers, theta, mr_v, exner,      &
 
       exner_itn(k+1) = exner_itn(k+1) + delta_exner
 
-      if ( abs( delta_exner ) <= tol ) goto 10
+      if ( abs( delta_exner ) <= tol ) exit
     end do
 
-    write(log_scratch_space,'(''Itn fail in vetr_balance at k = '', i0)') k
-    call log_event(log_scratch_space, LOG_LEVEL_ERROR)
-
-10  continue
+    if ( abs( delta_exner ) > tol ) then
+      write(log_scratch_space, '(''vert_balance: iteration failed at k = '', i0)') k
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      write(log_scratch_space, *) 'tol = ', tol
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      write(log_scratch_space, *) 'delta_exner = ', delta_exner
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      write(log_scratch_space, *) 'exner_itn(k+1) = ', exner_itn(k+1)
+      call log_event(log_scratch_space, LOG_LEVEL_ERROR)
+    end if
 
     exner(map_w3(1)+k) = exner_itn(k+1)
 
