@@ -96,6 +96,7 @@ contains
       ! vapour mixing ratio tendency in the lowest model layer.
       dmv_forcing(map_wth(1)) = dmv_forcing(map_wth(1)) + (evaporative_heat_flux * dt) / &
           (latent_heat_h2o_condensation * wetrho_in_wth(map_wth(1)) * dz_wtheta(map_wth(1)))
+      ! ToDo: temperature dependence of latent heat of condensation.
     else
       write(log_scratch_space, '(A)')                                      &
           'idealised_evaporation_kernel_mod: Unknown vapour_surface_forcing option'

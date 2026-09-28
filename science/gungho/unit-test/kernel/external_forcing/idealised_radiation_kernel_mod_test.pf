@@ -141,6 +141,9 @@ contains
     integer(kind=i_def) :: k
 
     call feign_external_forcing_config(                                    &
+        column_cooling_flux=column_cooling_flux,                           &
+        tropopause_temperature=tropopause_temperature,                     &
+        nudging_timescale=nudging_timescale,                               &
         theta_surface_forcing=theta_surface_forcing_flux,                  &
         sensible_heat_flux=1000.0_r_def )
 
@@ -191,6 +194,9 @@ contains
     integer(kind=i_def) :: k
 
     call feign_external_forcing_config(                                    &
+        column_cooling_flux=column_cooling_flux,                           &
+        tropopause_temperature=tropopause_temperature,                     &
+        nudging_timescale=nudging_timescale,                               &
         theta_surface_forcing=theta_surface_forcing_fixed,                 &
         fixed_surface_temperature=target_temperature )
 

@@ -20,7 +20,10 @@ module idealised_radiation_kernel_mod
   use fs_continuity_mod, only: Wtheta
   use kernel_mod,      only: kernel_type
   use planet_config_mod, only: cp, gravity, p_zero, kappa
-  use external_forcing_config_mod, only: sensible_heat_flux,          &
+  use external_forcing_config_mod, only: column_cooling_flux,          &
+                                         tropopause_temperature,       &
+                                         nudging_timescale,            &
+                                         sensible_heat_flux,           &
                                          fixed_surface_temperature,    &
                                          theta_surface_forcing,        &
                                          theta_surface_forcing_flux,   &
@@ -110,10 +113,6 @@ contains
     real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
     real(kind=r_def)    :: tropospheric_dtemp_dt(0:nlayers)
     real(kind=r_def)    :: cpm(0:nlayers)
-
-    real(kind=r_def), parameter :: column_cooling_flux = 200.0_r_def  ! W m-2
-    real(kind=r_def), parameter :: tropopause_temperature = 200.0_r_def ! K
-    real(kind=r_def), parameter :: nudging_timescale = 21600.0_r_def ! 6 hours
 
     !cpm = cpd + mr_v_n * cpv + mr_cl_n * cl
     do k = 0, nlayers
