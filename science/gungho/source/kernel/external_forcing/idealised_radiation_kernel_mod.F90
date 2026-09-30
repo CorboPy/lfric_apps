@@ -14,7 +14,7 @@ module idealised_radiation_kernel_mod
   use argument_mod,    only: arg_type,              &
                              GH_FIELD, GH_REAL,     &
                              GH_READ, GH_READWRITE, &
-                             GH_SCALAR,             &
+                             GH_WRITE, GH_SCALAR,   &
                              CELL_COLUMN
   use constants_mod,   only: i_def, r_def
   use fs_continuity_mod, only: Wtheta
@@ -40,8 +40,9 @@ module idealised_radiation_kernel_mod
   !> The type declaration for the kernel. Contains metadata for the PSy layer.
   type, public, extends(kernel_type) :: idealised_radiation_kernel_type
     private
-    type(arg_type) :: meta_args(12) = (/                    &
+    type(arg_type) :: meta_args(14) = (/                    &
          arg_type(GH_FIELD, GH_REAL, GH_READWRITE, Wtheta), & ! dtheta_forcing
+         arg_type(GH_FIELD, GH_REAL, GH_WRITE,     Wtheta), & ! dtemp_dt_trop
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! theta
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! exner_in_wth
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! temperature_mean
@@ -52,7 +53,8 @@ module idealised_radiation_kernel_mod
          arg_type(GH_FIELD, GH_REAL, GH_READ,      Wtheta), & ! dz_wtheta
          arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cpv
          arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! cl
-         arg_type(GH_SCALAR, GH_REAL, GH_READ)              & ! dt
+         arg_type(GH_SCALAR, GH_REAL, GH_READ),             & ! dt
+         arg_type(GH_SCALAR, GH_REAL, GH_READ)              & ! cooling_dt
          /)
     integer :: operates_on = CELL_COLUMN
   contains
@@ -66,6 +68,7 @@ contains
 !> @brief Apply idealised tropospheric cooling and stratospheric nudging.
 !> @param[in]     nlayers The number of layers
 !> @param[in,out] dtheta Potential temperature increment data
+!> @param[in,out] dtemp_dt_trop Tropospheric cooling rate (K s-1)
 !> @param[in]     theta Potential temperature data
 !> @param[in]     exner_in_wth Exner pressure in Wtheta space
 !> @param[in]     temperature_mean Horizontally averaged absolute temperature
@@ -77,16 +80,18 @@ contains
 !> @param[in]     cpv          Heat capacity of water vap at constant pressure
 !> @param[in]     cl           Heat capacity of liquid water
 !> @param[in]     dt The model timestep length
+!> @param[in]     cooling_dt Time over which to apply the tropospheric cooling
 !> @param[in]     ndf_wth Number of degrees of freedom per cell for Wtheta
 !> @param[in]     undf_wth Number of unique degrees of freedom for Wtheta
 !> @param[in]     map_wth Dofmap for the cell at base of the column for Wtheta
   subroutine idealised_radiation_code(nlayers,                    &
-                                      dtheta, theta,              &
+                                      dtheta, dtemp_dt_trop,      &
+                                      theta,                      &
                                       exner_in_wth,               &
                                       temperature_mean,           &
                                       mr_v_n, mr_cl_n, mr_r_n,    &
                                       wetrho_in_wth, dz_wtheta,   &
-                                      cpv, cl, dt,                &
+                                      cpv, cl, dt, cooling_dt,    &
                                       ndf_wth, undf_wth, map_wth)
 
     implicit none
@@ -95,6 +100,7 @@ contains
     integer(kind=i_def), intent(in) :: ndf_wth, undf_wth
 
     real(kind=r_def), dimension(undf_wth), intent(inout) :: dtheta
+    real(kind=r_def), dimension(undf_wth), intent(inout) :: dtemp_dt_trop
     real(kind=r_def), dimension(undf_wth), intent(in)    :: theta
     real(kind=r_def), dimension(undf_wth), intent(in)    :: exner_in_wth
     real(kind=r_def), dimension(undf_wth), intent(in)    :: temperature_mean
@@ -104,7 +110,7 @@ contains
     real(kind=r_def), dimension(undf_wth), intent(in)    :: wetrho_in_wth, &
                                                             dz_wtheta
     real(kind=r_def),                        intent(in)  :: cpv, cl, &
-                                                            dt
+                                                            dt, cooling_dt
 
     integer(kind=i_def), dimension(ndf_wth), intent(in)  :: map_wth
 
@@ -151,17 +157,20 @@ contains
 
       if (exner <= epsilon(1.0_r_def)) then
         dtheta(map_wth(1) + k) = 0.0_r_def
+        dtemp_dt_trop(map_wth(1) + k) = 0.0_r_def
         cycle
       end if
 
       if (k <= tropopause_level) then
-        dtemp_dt = tropospheric_dtemp_dt(k)
+        ! Cooling may be subcycled, so it is applied over cooling_dt
+        dtemp_dt_trop(map_wth(1) + k) = tropospheric_dtemp_dt(k)
+        dtheta(map_wth(1) + k) = tropospheric_dtemp_dt(k) * cooling_dt / exner
       else
+        dtemp_dt_trop(map_wth(1) + k) = 0.0_r_def
         temperature = theta(map_wth(1) + k) * exner
         dtemp_dt = -(temperature - tropopause_temperature) / nudging_timescale
+        dtheta(map_wth(1) + k) = dtemp_dt * dt / exner
       end if
-
-      dtheta(map_wth(1) + k) = dtemp_dt * dt / exner
     end do
 
     exner = exner_in_wth(map_wth(1))
@@ -172,6 +181,7 @@ contains
       ! that target in one step, replacing the tropospheric cooling
       ! contribution computed for this layer above.
       dtheta(map_wth(1)) = fixed_surface_temperature / exner - theta(map_wth(1))
+      dtemp_dt_trop(map_wth(1)) = 0.0_r_def
     else if (theta_surface_forcing == theta_surface_forcing_flux) then
       dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
           (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner)

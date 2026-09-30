@@ -891,6 +891,8 @@
   <!-- Forcing diagnostics -->
   <field id="forcing__dtheta_force" name="dtheta_force" long_name="potential_temperature_increment_from_external_forcing" unit="K" grid_ref="full_level_face_grid" />
   <field id="forcing__dt_force" name="dt_force" long_name="temperature_increment_from_external_forcing" unit="K" grid_ref="full_level_face_grid">forcing__dtheta_force * exner_wth_n</field>
+  <field id="forcing__dt_trop_cool_rate" name="dt_trop_cool_rate" long_name="tropospheric_temperature_tendency_from_idealised_radiative_cooling" unit="K s-1" grid_ref="full_level_face_grid" />
+  <field id="forcing__dtheta_trop_cool_rate" name="dtheta_trop_cool_rate" long_name="tropospheric_potential_temperature_tendency_from_idealised_radiative_cooling" unit="K s-1" grid_ref="full_level_face_grid">forcing__dt_trop_cool_rate / exner_wth_n</field>
   <field id="forcing__du_force" name="du_force" long_name="eastward_wind_increment_from_external_forcing" unit="m s-1" grid_ref="half_level_face_grid" />
   <field id="forcing__dv_force" name="dv_force" long_name="northward_wind_increment_from_external_forcing" unit="m s-1" grid_ref="half_level_face_grid" />
   <field id="forcing__dw_force" name="dw_force" long_name="vertical_air_velocity_increment_from_external_forcing" unit="m s-1" grid_ref="half_level_face_grid" />

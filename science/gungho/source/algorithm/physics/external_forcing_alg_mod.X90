@@ -17,6 +17,10 @@ module external_forcing_alg_mod
                                              theta_forcing_deep_hot_jupiter,     &
                                              theta_forcing_idealised_radiation,  &
                                              theta_forcing_temp_tend,            &
+                                             column_cooling_flux,                &
+                                             tropopause_temperature,             &
+                                             nudging_timescale,                  &
+                                             n_cooling_step,                     &
                                              theta_relaxation,                   &
                                              vapour_forcing,                     &
                                              vapour_forcing_none,                &
@@ -35,7 +39,8 @@ module external_forcing_alg_mod
                                              diffusion_coefficient,              &
                                              pc2_force_response
   use log_mod,                         only: log_event, log_scratch_space,       &
-                                             LOG_LEVEL_INFO, LOG_LEVEL_ERROR
+                                             LOG_LEVEL_INFO, LOG_LEVEL_ERROR,    &
+                                             LOG_LEVEL_DEBUG
   use lfric_xios_write_mod,            only: write_field_generic
   use field_parent_mod,                only: write_interface
 
@@ -79,6 +84,7 @@ module external_forcing_alg_mod
   use temp_tend_profile_alg_mod,       only: temp_tend_profile_alg
   use theta_relax_alg_mod,             only: theta_relax_alg
   use horiz_mean_alg_mod,              only: horiz_mean_alg
+  use sci_field_minmax_alg_mod,        only: log_field_minmax
   use geostrophic_forcing_alg_mod,     only: geostrophic_forcing_alg
   use vapour_forcing_profile_alg_mod,  only: vapour_forcing_profile_alg
   use wind_forcing_profile_alg_mod,    only: wind_forcing_profile_alg
@@ -94,6 +100,9 @@ module external_forcing_alg_mod
 
   private
   public :: external_forcing_alg
+
+  ! Whether the idealised radiation settings have been logged this run
+  logical( kind=l_def ), save :: cooling_config_logged = .false.
 
 contains
 
@@ -159,13 +168,15 @@ contains
     type( field_type ), pointer :: dz_in_wth => null()
 
     type( field_type ) :: u_smoothed, dx, visc_m
-    type( field_type ) :: temperature, temperature_mean
+    type( field_type ) :: temperature, temperature_mean, dtemp_dt_trop
 
     integer( kind=i_def ) :: order, nlayers
     real( kind=r_def )    :: diffusion_coefficient_scaled, dx_sum, dx_size
 
     ! idealised_radiation
-    real( kind=r_def )                    :: cpv, cl
+    real( kind=r_def )                    :: cpv, cl, cooling_dt
+    integer( kind=i_def )                 :: step
+    logical( kind=l_def )                 :: apply_cooling
 
     type( mesh_type ),  pointer :: mesh => null()
     procedure(write_interface), pointer :: write_behaviour => null()
@@ -260,11 +271,61 @@ contains
 
           call horiz_mean_alg( temperature_mean, nlayers, twod_mesh, temperature )
 
-          call invoke( idealised_radiation_kernel_type(dtheta_forcing, theta,         &
+          if ( n_cooling_step < 1_i_def ) then
+            call log_event( 'slow_physics: n_cooling_step must be >= 1', &
+                            LOG_LEVEL_ERROR )
+          end if
+
+          if ( .not. cooling_config_logged ) then
+            write( log_scratch_space, '(A,ES10.3,A,I0,A,ES10.3,A,ES10.3,A,ES10.3,A)' ) &
+                'slow_physics: idealised radiation column_cooling_flux=',          &
+                column_cooling_flux, ' W m-2 applied every ', n_cooling_step,      &
+                ' steps (', real(n_cooling_step, r_def) * dt,                      &
+                ' s); tropopause_temperature=', tropopause_temperature,            &
+                ' K; nudging_timescale=', nudging_timescale, ' s'
+            call log_event( log_scratch_space, LOG_LEVEL_INFO )
+            cooling_config_logged = .true.
+          end if
+
+          ! Apply the tropospheric cooling every n_cooling_step steps, over
+          ! n_cooling_step * dt, so the increment is resolvable in theta.
+          ! time_now is clock step * dt, so step is recovered exactly.
+          step = nint( time_now / dt, i_def )
+          apply_cooling = ( mod(step - 1_i_def, n_cooling_step) == 0_i_def )
+          if ( apply_cooling ) then
+            cooling_dt = real(n_cooling_step, r_def) * dt
+            write( log_scratch_space, '(A,I0,A,ES10.3,A)' )                    &
+                'slow_physics: Applying tropospheric cooling at step ', step,  &
+                ' over ', cooling_dt, ' s'
+            call log_event( log_scratch_space, LOG_LEVEL_INFO )
+          else
+            cooling_dt = 0.0_r_def
+            write( log_scratch_space, '(A,I0)' )                               &
+                'slow_physics: Tropospheric cooling deferred at step ', step
+            call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+          end if
+
+          call dtemp_dt_trop%initialise( vector_space = theta%get_function_space() )
+
+          call invoke( idealised_radiation_kernel_type(dtheta_forcing, dtemp_dt_trop, &
+                                                       theta,                         &
                                                        exner_in_wth, temperature_mean, &
                                                        mr_n(imr_v), mr_n(imr_cl), &
                                                        mr_n(imr_r), wetrho_in_wth, &
-                                                       dz_in_wth, cpv, cl, dt) )
+                                                       dz_in_wth, cpv, cl, dt,    &
+                                                       cooling_dt) )
+
+          if ( apply_cooling ) then
+            call log_field_minmax( LOG_LEVEL_INFO,                             &
+                                   'idealised radiation dT/dt trop [K s-1]',   &
+                                   dtemp_dt_trop )
+          end if
+
+          if (write_diag .and. use_xios_io) then
+            write_behaviour => write_field_generic
+            call dtemp_dt_trop%set_write_behaviour(write_behaviour)
+            call dtemp_dt_trop%write_field('forcing__dt_trop_cool_rate')
+          end if
 
         case(theta_forcing_temp_tend)
 

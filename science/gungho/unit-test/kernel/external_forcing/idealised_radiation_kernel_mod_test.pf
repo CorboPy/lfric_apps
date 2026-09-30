@@ -12,7 +12,8 @@ module idealised_radiation_kernel_mod_test
   implicit none
 
   private
-  public :: set_up, tear_down, test_flux_forcing, test_fixed_forcing
+  public :: set_up, tear_down, test_flux_forcing, test_fixed_forcing, &
+            test_subcycled_cooling
 
   integer(kind=i_def), parameter :: nlayers = 3_i_def
   integer(kind=i_def), parameter :: ndf_wth = 2_i_def
@@ -80,15 +81,18 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !> Compute the tropospheric-cooling / stratospheric-nudging increment
   !> profile only, i.e. without the surface-layer adjustment, against which
-  !> the kernel output is compared by both tests below.
-  subroutine background_dtheta(cpm, answer)
+  !> the kernel output is compared by the tests below. The tropospheric
+  !> cooling is applied over cooling_dt and its rate returned in rate.
+  subroutine background_dtheta(cooling_dt, cpm, answer, rate)
 
     use planet_config_mod, only : cp, gravity, p_zero, kappa
 
     implicit none
 
+    real(kind=r_def), intent(in)  :: cooling_dt
     real(kind=r_def), intent(out) :: cpm(0:nlayers)
     real(kind=r_def), intent(out) :: answer(undf_wth)
+    real(kind=r_def), intent(out) :: rate(undf_wth)
 
     real(kind=r_def)    :: dtemp_dt_troposphere(0:nlayers)
     real(kind=r_def)    :: p_surface, p_tropopause, delta_pressure
@@ -108,11 +112,12 @@ contains
       dtemp_dt_troposphere(k) = -column_cooling_flux * gravity / (cpm(k) * delta_pressure)
     end do
 
-    answer(map_wth(1)) = dtemp_dt_troposphere(0) * dt / exner_in_wth(map_wth(1))
-    answer(map_wth(1) + 1_i_def) = dtemp_dt_troposphere(1) * dt /                  &
-                                   exner_in_wth(map_wth(1) + 1_i_def)
-    answer(map_wth(1) + 2_i_def) = dtemp_dt_troposphere(2) * dt /                  &
-                                   exner_in_wth(map_wth(1) + 2_i_def)
+    do k = 0, 2
+      rate(map_wth(1) + k) = dtemp_dt_troposphere(k)
+      answer(map_wth(1) + k) = dtemp_dt_troposphere(k) * cooling_dt /              &
+                               exner_in_wth(map_wth(1) + k)
+    end do
+    rate(map_wth(1) + 3_i_def) = 0.0_r_def
     answer(map_wth(1) + 3_i_def) =                                                  &
       (-(theta(map_wth(1) + 3_i_def) * exner_in_wth(map_wth(1) + 3_i_def) -       &
          tropopause_temperature) / nudging_timescale) * dt /                       &
@@ -121,12 +126,35 @@ contains
   end subroutine background_dtheta
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> Assert that a kernel output column matches the expected column.
+  subroutine assert_column(expected, actual)
+
+    use, intrinsic :: iso_fortran_env, only : real64
+
+    implicit none
+
+    real(kind=r_def), intent(in) :: expected(undf_wth), actual(undf_wth)
+
+    real(kind=r_def)    :: use_tol
+    integer(kind=i_def) :: k
+
+    do k = 0, nlayers
+      if (r_def == real64) then
+        use_tol = tol
+      else
+        use_tol = 10.0_r_def * spacing(expected(map_wth(1) + k))
+      end if
+      @assertEqual( expected(map_wth(1) + k), actual(map_wth(1) + k), use_tol )
+    end do
+
+  end subroutine assert_column
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !> With the 'flux' surface treatment, the surface layer increment adds a
   !> prescribed sensible heat flux term on top of the tropospheric cooling.
   @test
   subroutine test_flux_forcing()
 
-    use, intrinsic :: iso_fortran_env, only : real64
     use idealised_radiation_kernel_mod, only : idealised_radiation_code
     use feign_config_mod, only : feign_external_forcing_config
     use external_forcing_config_mod, only : sensible_heat_flux, &
@@ -134,11 +162,9 @@ contains
 
     implicit none
 
-    real(kind=r_def) :: dtheta(undf_wth)
-    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: dtheta(undf_wth), dtemp_dt_trop(undf_wth)
+    real(kind=r_def) :: answer(undf_wth), rate(undf_wth)
     real(kind=r_def) :: cpm(0:nlayers)
-    real(kind=r_def) :: use_tol
-    integer(kind=i_def) :: k
 
     call feign_external_forcing_config(                                    &
         column_cooling_flux=column_cooling_flux,                           &
@@ -148,26 +174,21 @@ contains
         sensible_heat_flux=1000.0_r_def )
 
     dtheta = 0.0_r_def
-    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
+    call idealised_radiation_code( nlayers, dtheta, dtemp_dt_trop,               &
+                                   theta, exner_in_wth,                           &
                                    temperature_mean,                              &
                                    mr_v_n, mr_cl_n, mr_r_n,                       &
                                    wetrho_in_wth, dz_wtheta,                      &
-                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
+                                   cpv, cl, dt, dt, ndf_wth, undf_wth, map_wth )
 
-    call background_dtheta(cpm, answer)
+    call background_dtheta(dt, cpm, answer, rate)
 
     answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /          &
         (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *              &
          exner_in_wth(map_wth(1)))
 
-    do k = 0, nlayers
-      if (r_def == real64) then
-        use_tol = tol
-      else
-        use_tol = 10.0_r_def * spacing(answer(map_wth(1) + k))
-      end if
-      @assertEqual( answer(map_wth(1) + k), dtheta(map_wth(1) + k), use_tol )
-    end do
+    call assert_column(answer, dtheta)
+    call assert_column(rate, dtemp_dt_trop)
 
   end subroutine test_flux_forcing
 
@@ -178,7 +199,6 @@ contains
   @test
   subroutine test_fixed_forcing()
 
-    use, intrinsic :: iso_fortran_env, only : real64
     use idealised_radiation_kernel_mod, only : idealised_radiation_code
     use feign_config_mod, only : feign_external_forcing_config
     use external_forcing_config_mod, only : theta_surface_forcing_fixed
@@ -187,11 +207,9 @@ contains
 
     real(kind=r_def), parameter :: target_temperature = 290.0_r_def
 
-    real(kind=r_def) :: dtheta(undf_wth)
-    real(kind=r_def) :: answer(undf_wth)
+    real(kind=r_def) :: dtheta(undf_wth), dtemp_dt_trop(undf_wth)
+    real(kind=r_def) :: answer(undf_wth), rate(undf_wth)
     real(kind=r_def) :: cpm(0:nlayers)
-    real(kind=r_def) :: use_tol
-    integer(kind=i_def) :: k
 
     call feign_external_forcing_config(                                    &
         column_cooling_flux=column_cooling_flux,                           &
@@ -201,25 +219,72 @@ contains
         fixed_surface_temperature=target_temperature )
 
     dtheta = 0.0_r_def
-    call idealised_radiation_code( nlayers, dtheta, theta, exner_in_wth,         &
+    call idealised_radiation_code( nlayers, dtheta, dtemp_dt_trop,               &
+                                   theta, exner_in_wth,                           &
                                    temperature_mean,                              &
                                    mr_v_n, mr_cl_n, mr_r_n,                       &
                                    wetrho_in_wth, dz_wtheta,                      &
-                                   cpv, cl, dt, ndf_wth, undf_wth, map_wth )
+                                   cpv, cl, dt, dt, ndf_wth, undf_wth, map_wth )
 
-    call background_dtheta(cpm, answer)
+    call background_dtheta(dt, cpm, answer, rate)
 
     answer(map_wth(1)) = target_temperature / exner_in_wth(map_wth(1)) - theta(map_wth(1))
+    ! The surface cooling is discarded by the fixed treatment
+    rate(map_wth(1)) = 0.0_r_def
 
-    do k = 0, nlayers
-      if (r_def == real64) then
-        use_tol = tol
-      else
-        use_tol = 10.0_r_def * spacing(answer(map_wth(1) + k))
-      end if
-      @assertEqual( answer(map_wth(1) + k), dtheta(map_wth(1) + k), use_tol )
-    end do
+    call assert_column(answer, dtheta)
+    call assert_column(rate, dtemp_dt_trop)
 
   end subroutine test_fixed_forcing
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> The tropospheric cooling increment scales with cooling_dt, while the
+  !> nudging and surface flux terms still use dt. The reported cooling rate
+  !> is independent of cooling_dt.
+  @test
+  subroutine test_subcycled_cooling()
+
+    use idealised_radiation_kernel_mod, only : idealised_radiation_code
+    use feign_config_mod, only : feign_external_forcing_config
+    use external_forcing_config_mod, only : sensible_heat_flux, &
+                                            theta_surface_forcing_flux
+
+    implicit none
+
+    real(kind=r_def), parameter :: cooling_dts(2) = (/ 0.0_r_def, 5.0_r_def * dt /)
+
+    real(kind=r_def) :: dtheta(undf_wth), dtemp_dt_trop(undf_wth)
+    real(kind=r_def) :: answer(undf_wth), rate(undf_wth)
+    real(kind=r_def) :: cpm(0:nlayers)
+    integer(kind=i_def) :: i
+
+    call feign_external_forcing_config(                                    &
+        column_cooling_flux=column_cooling_flux,                           &
+        tropopause_temperature=tropopause_temperature,                     &
+        nudging_timescale=nudging_timescale,                               &
+        theta_surface_forcing=theta_surface_forcing_flux,                  &
+        sensible_heat_flux=1000.0_r_def )
+
+    do i = 1, size(cooling_dts)
+      dtheta = 0.0_r_def
+      call idealised_radiation_code( nlayers, dtheta, dtemp_dt_trop,             &
+                                     theta, exner_in_wth,                         &
+                                     temperature_mean,                            &
+                                     mr_v_n, mr_cl_n, mr_r_n,                     &
+                                     wetrho_in_wth, dz_wtheta,                    &
+                                     cpv, cl, dt, cooling_dts(i),                 &
+                                     ndf_wth, undf_wth, map_wth )
+
+      call background_dtheta(cooling_dts(i), cpm, answer, rate)
+
+      answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /        &
+          (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *            &
+           exner_in_wth(map_wth(1)))
+
+      call assert_column(answer, dtheta)
+      call assert_column(rate, dtemp_dt_trop)
+    end do
+
+  end subroutine test_subcycled_cooling
 
 end module idealised_radiation_kernel_mod_test
