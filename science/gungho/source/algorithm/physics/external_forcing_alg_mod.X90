@@ -277,12 +277,11 @@ contains
           end if
 
           if ( .not. cooling_config_logged ) then
-            write( log_scratch_space, '(A,ES10.3,A,I0,A,ES10.3,A,ES10.3,A,ES10.3,A)' ) &
-                'slow_physics: idealised radiation column_cooling_flux=',          &
-                column_cooling_flux, ' W m-2 applied every ', n_cooling_step,      &
-                ' steps (', real(n_cooling_step, r_def) * dt,                      &
-                ' s); tropopause_temperature=', tropopause_temperature,            &
-                ' K; nudging_timescale=', nudging_timescale, ' s'
+            write( log_scratch_space, '(A,F0.1,A,I0,A,F0.1,A,F0.1,A,F0.1,A)' ) &
+                'slow_physics: idealised radiation ', column_cooling_flux,     &
+                ' W m-2, n_cooling_step=', n_cooling_step,                     &
+                ' (', real(n_cooling_step, r_def) * dt, ' s), T_trop ',        &
+                tropopause_temperature, ' K, tau ', nudging_timescale, ' s'
             call log_event( log_scratch_space, LOG_LEVEL_INFO )
             cooling_config_logged = .true.
           end if
