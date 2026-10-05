@@ -19,8 +19,11 @@ module physics_common_mod
   use physics_config_mod,           only: saturation_vapour_pressure_scheme, &
                                         saturation_vapour_pressure_scheme_tetens, &
                                         saturation_vapour_pressure_scheme_clausius_clapeyron
+  use formulation_config_mod,       only: theta_moist_source
   use driver_water_constants_mod,   only: Lv0 => latent_heat_h2o_condensation, &
-                                        Rv0 => gas_constant_h2o
+                                        Rv0 => gas_constant_h2o,             &
+                                        cpv0 => heat_capacity_h2o_vapour,    &
+                                        cl0 => heat_capacity_h2o
   use log_mod,                      only: log_event, log_scratch_space, &
                                         LOG_LEVEL_INFO, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING
   implicit none
@@ -35,8 +38,18 @@ contains
   ! Tetens' formula (empirical fit, terrestrial conditions):
   !   es = 6.109 * exp(17.2693882*(T-273.15)/(T-35.86))
   !
-  ! Clausius-Clapeyron (direct integration, constant Lv and ideal water
-  ! vapour, valid ~150-350K):
+  ! Clausius-Clapeyron (direct integration, ideal water vapour, valid
+  ! ~150-350K). The treatment of the latent heat matches that used in
+  ! evap_condense_kernel_mod, which depends on theta_moist_source:
+  !
+  ! theta_moist_source = .true.: Lv varies with temperature following
+  ! Kirchhoff's relation
+  !   Lv(T) = Lv0 + (cpv - cl)*(T - T0)
+  ! Integrating dln(es)/dT = Lv(T)/(Rv*T^2) from T0 gives
+  !   es = es0 * (T/T0)**((cpv-cl)/Rv0)
+  !           * exp(((Lv0 - (cpv-cl)*T0)/Rv0) * (1/T0 - 1/T))
+  !
+  ! theta_moist_source = .false.: constant Lv = Lv0, giving
   !   es = es0 * exp((Lv0/Rv0) * (1/T0 - 1/T))
   !
   ! In both cases: qs = epsilon * es / (p - es)
@@ -58,6 +71,12 @@ contains
 
     real(kind=r_def), parameter :: cc_t0 = tk0c    ! Reference temperature for Clausius-Clapeyron, [K]
     real(kind=r_def), parameter :: cc_e0 = qsa4     ! es(cc_t0), [mbar]
+    ! d(Lv)/dT = cpv - cl, [J/(kg K)]
+    real(kind=r_def), parameter :: cc_dlv_dt = cpv0 - cl0
+    ! Temperature exponent of the power-law term, (cpv - cl)/Rv0
+    real(kind=r_def), parameter :: cc_exponent = cc_dlv_dt / Rv0
+    ! Effective latent heat constant in the exponential, Lv(T) = cc_lv_eff + cc_dlv_dt*T
+    real(kind=r_def), parameter :: cc_lv_eff = Lv0 - cc_dlv_dt * cc_t0
 
     character(len=128) :: msg
 
@@ -66,7 +85,14 @@ contains
     case (saturation_vapour_pressure_scheme_clausius_clapeyron)
       valid_temperature = (T > 0.0_r_def)
       if (valid_temperature) then
-        es = cc_e0 * exp( (Lv0 / Rv0) * (1.0_r_def / cc_t0 - 1.0_r_def / T) )
+        if (theta_moist_source) then
+          ! Temperature-dependent Lv
+          es = cc_e0 * (T / cc_t0) ** cc_exponent                              &
+             * exp( (cc_lv_eff / Rv0) * (1.0_r_def / cc_t0 - 1.0_r_def / T) )
+        else
+          ! Constant Lv
+          es = cc_e0 * exp( (Lv0 / Rv0) * (1.0_r_def / cc_t0 - 1.0_r_def / T) )
+        end if
       end if
 
     case (saturation_vapour_pressure_scheme_tetens)
