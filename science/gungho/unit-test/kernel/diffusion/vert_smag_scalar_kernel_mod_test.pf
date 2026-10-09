@@ -1,0 +1,98 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Tests for implicit vertical Smagorinsky diffusion of a Wtheta scalar,
+!>        on a single hand-built column with uneven layers, densities and K.
+module vert_smag_scalar_kernel_mod_test
+
+  use constants_mod,               only : i_def, r_def
+  use vert_smag_scalar_kernel_mod, only : vert_smag_scalar_code
+  use funit
+
+  implicit none
+
+  private
+  public :: test_conserves_dry_mass, test_ground_unchanged, test_uniform_field
+
+  integer(i_def), parameter :: nlayers = 4
+  integer(i_def), parameter :: ndf_wt = 2, undf_wt = nlayers + 1
+  integer(i_def), parameter :: ndf_w3 = 1, undf_w3 = nlayers
+  integer(i_def), parameter :: map_wt(ndf_wt) = (/ 1, 2 /)
+  integer(i_def), parameter :: map_w3(ndf_w3) = (/ 1 /)
+
+  real(r_def), parameter :: height_wth(undf_wt) =                            &
+      (/ 0.0_r_def, 1000.0_r_def, 2500.0_r_def, 3500.0_r_def, 5000.0_r_def /)
+  real(r_def), parameter :: rho(undf_w3) =                                   &
+      (/ 1.2_r_def, 0.9_r_def, 0.7_r_def, 0.5_r_def /)
+  real(r_def), parameter :: visc_h(undf_wt) =                                &
+      (/ 0.0_r_def, 100.0_r_def, 400.0_r_def, 50.0_r_def, 0.0_r_def /)
+  real(r_def), parameter :: field(undf_wt) =                                 &
+      (/ 9.0_r_def, 1.0_r_def, 3.0_r_def, 0.0_r_def, 2.0_r_def /)
+  real(r_def), parameter :: dt = 3600.0_r_def
+
+contains
+
+  !> Dry mass owned by each theta level, as in moisture_conservation_alg.
+  function level_mass() result(mass)
+    implicit none
+    real(r_def)    :: mass(nlayers)
+    real(r_def)    :: rho_dz(0:nlayers-1)
+    integer(i_def) :: k
+    do k = 0, nlayers - 1
+      rho_dz(k) = rho(k+1) * (height_wth(k+2) - height_wth(k+1))
+    end do
+    do k = 1, nlayers - 1
+      mass(k) = 0.5_r_def * (rho_dz(k-1) + rho_dz(k))
+    end do
+    mass(nlayers) = 0.5_r_def * rho_dz(nlayers-1)
+  end function level_mass
+
+  !> The dry-mass weighted column total above the ground is unchanged.
+  @test
+  subroutine test_conserves_dry_mass()
+    implicit none
+    real(r_def) :: increment(undf_wt), mass(nlayers)
+    ! Column total is O(1e4), so this is a relative tolerance of ~1e-12
+    real(r_def), parameter :: tol = 1.0e-8_r_def
+
+    call vert_smag_scalar_code(nlayers, increment, field, visc_h, rho,  &
+                               height_wth, dt,                          &
+                               ndf_wt, undf_wt, map_wt,                 &
+                               ndf_w3, undf_w3, map_w3)
+    mass = level_mass()
+    @assertEqual(sum(mass*field(2:)), sum(mass*(field(2:)+increment(2:))), tol)
+    ! Check the step actually mixed something
+    @assertTrue(maxval(abs(increment)) > 1.0e-3_r_def)
+  end subroutine test_conserves_dry_mass
+
+  !> Zero flux at the ground: the ground value is not changed.
+  @test
+  subroutine test_ground_unchanged()
+    implicit none
+    real(r_def) :: increment(undf_wt)
+
+    call vert_smag_scalar_code(nlayers, increment, field, visc_h, rho,  &
+                               height_wth, dt,                          &
+                               ndf_wt, undf_wt, map_wt,                 &
+                               ndf_w3, undf_w3, map_w3)
+    @assertEqual(0.0_r_def, increment(1), 0.0_r_def)
+  end subroutine test_ground_unchanged
+
+  !> A uniform field has no gradients to diffuse.
+  @test
+  subroutine test_uniform_field()
+    implicit none
+    real(r_def) :: increment(undf_wt), uniform(undf_wt)
+    real(r_def), parameter :: tol = 1.0e-12_r_def
+
+    uniform = 5.0_r_def
+    call vert_smag_scalar_code(nlayers, increment, uniform, visc_h, rho, &
+                               height_wth, dt,                           &
+                               ndf_wt, undf_wt, map_wt,                  &
+                               ndf_w3, undf_w3, map_w3)
+    @assertEqual(0.0_r_def, maxval(abs(increment)), tol)
+  end subroutine test_uniform_field
+
+end module vert_smag_scalar_kernel_mod_test

@@ -37,6 +37,7 @@
   <field id="shear" name="shear" long_name="3d_wind_shear" unit="s-1" grid_ref="full_level_face_grid" />
   <field id="visc_h" name="visc_h" long_name="smagorinsky_heat_eddy_diffusivity" unit="m2 s-1" grid_ref="full_level_face_grid" />
   <field id="visc_m" name="visc_m" long_name="smagorinsky_momentum_eddy_diffusivity" unit="m2 s-1" grid_ref="full_level_face_grid" />
+  <field id="smag_n_squared" name="smag_n_squared" long_name="moist_buoyancy_frequency_squared_for_smagorinsky" unit="s-2" grid_ref="full_level_face_grid" />
   <field id="theta_star" name="theta_star" long_name="physics_predictor_air_potential_temperature" unit="K" grid_ref="full_level_face_grid" />
   <field id="u_in_w3_star" name="u_in_w3_star" long_name="physics_predictor_eastward_wind_at_cell_centres" unit="ms-1" grid_ref="half_level_face_grid" />
   <field id="v_in_w3_star" name="v_in_w3_star" long_name="physics_predictor_northward_wind_at_cell_centres" unit="ms-1" grid_ref="half_level_face_grid" />

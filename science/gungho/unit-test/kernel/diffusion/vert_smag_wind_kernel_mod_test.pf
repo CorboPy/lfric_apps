@@ -1,0 +1,89 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Tests for implicit vertical Smagorinsky diffusion of the horizontal
+!>        wind, on a single hand-built column of W2 dofs.
+module vert_smag_wind_kernel_mod_test
+
+  use constants_mod,             only : i_def, r_def
+  use vert_smag_wind_kernel_mod, only : vert_smag_wind_code
+  use funit
+
+  implicit none
+
+  private
+  public :: test_conserves_momentum, test_vertical_dofs_unchanged
+
+  ! One column, 3 layers: faces 1-4 hold 3 values each, then the vertical
+  ! dofs (df 5 at the bottom of each layer, df 6 at the top)
+  integer(i_def), parameter :: nlayers = 3
+  integer(i_def), parameter :: ndf_w2 = 6
+  integer(i_def), parameter :: undf_w2 = 4*nlayers + nlayers + 1
+  integer(i_def), parameter :: map_w2(ndf_w2) = (/ 1, 4, 7, 10, 13, 14 /)
+  real(r_def),    parameter :: dt = 600.0_r_def
+
+contains
+
+  !> Fill the face coefficients and winds with uneven values. The ground
+  !> conductance (index 0) is set huge to check it is ignored (zero flux).
+  subroutine set_column(u_phys, rhokm_w2, mass_w2)
+    implicit none
+    real(r_def), intent(out) :: u_phys(undf_w2), rhokm_w2(undf_w2), mass_w2(undf_w2)
+    integer(i_def) :: df, k
+
+    u_phys   = 0.0_r_def
+    rhokm_w2 = 0.0_r_def
+    mass_w2  = 1.0_r_def
+    do df = 1, 4
+      do k = 0, nlayers - 1
+        u_phys(map_w2(df) + k)  = real(df, r_def) * (-1.0_r_def)**k + real(k, r_def)
+        mass_w2(map_w2(df) + k) = 1000.0_r_def / real(k + df, r_def)
+        rhokm_w2(map_w2(df) + k) = 0.2_r_def * real(df + 2*k, r_def)
+      end do
+      rhokm_w2(map_w2(df)) = 1.0e6_r_def
+    end do
+    ! Vertical dofs get a nonzero wind that must not be touched
+    do k = 0, nlayers
+      u_phys(map_w2(5) + k) = 7.0_r_def
+    end do
+  end subroutine set_column
+
+  !> The mass-weighted momentum of each face column is unchanged.
+  @test
+  subroutine test_conserves_momentum()
+    implicit none
+    real(r_def) :: du(undf_w2), u_phys(undf_w2), rhokm_w2(undf_w2), mass_w2(undf_w2)
+    real(r_def) :: before, after
+    integer(i_def) :: df, i0, i1
+    real(r_def), parameter :: tol = 1.0e-9_r_def
+
+    call set_column(u_phys, rhokm_w2, mass_w2)
+    call vert_smag_wind_code(nlayers, du, u_phys, rhokm_w2, mass_w2, dt, &
+                             ndf_w2, undf_w2, map_w2)
+    do df = 1, 4
+      i0 = map_w2(df)
+      i1 = map_w2(df) + nlayers - 1
+      before = sum(mass_w2(i0:i1) * u_phys(i0:i1))
+      after  = sum(mass_w2(i0:i1) * (u_phys(i0:i1) + du(i0:i1)))
+      @assertEqual(before, after, tol)
+    end do
+    ! Check the step actually mixed something
+    @assertTrue(maxval(abs(du(1:4*nlayers))) > 1.0e-3_r_def)
+  end subroutine test_conserves_momentum
+
+  !> Vertical wind dofs get a zero increment.
+  @test
+  subroutine test_vertical_dofs_unchanged()
+    implicit none
+    real(r_def) :: du(undf_w2), u_phys(undf_w2), rhokm_w2(undf_w2), mass_w2(undf_w2)
+
+    call set_column(u_phys, rhokm_w2, mass_w2)
+    du = 99.0_r_def
+    call vert_smag_wind_code(nlayers, du, u_phys, rhokm_w2, mass_w2, dt, &
+                             ndf_w2, undf_w2, map_w2)
+    @assertEqual(0.0_r_def, maxval(abs(du(map_w2(5):undf_w2))), 0.0_r_def)
+  end subroutine test_vertical_dofs_unchanged
+
+end module vert_smag_wind_kernel_mod_test

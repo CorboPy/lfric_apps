@@ -30,7 +30,7 @@ module create_physics_prognostics_mod
                                              LOG_LEVEL_WARNING,                 &
                                              LOG_LEVEL_ERROR
   use mesh_mod,                       only : mesh_type
-  use mixing_config_mod,              only : smagorinsky
+  use mixing_config_mod,              only : smagorinsky, vertical_smagorinsky
   use physics_config_mod,             only : stochastic_physics_placement,      &
                                              stochastic_physics_placement_fast
   use pure_abstract_field_mod,        only : pure_abstract_field_type
@@ -189,6 +189,9 @@ contains
                                      empty = (.not. smagorinsky) ))
       call processor%apply(make_spec('visc_m', main%derived, Wtheta, &
                                      empty = (.not. smagorinsky) ))
+      ! Moist buoyancy frequency squared used by vertical Smagorinsky
+      call processor%apply(make_spec('smag_n_squared', main%derived, Wtheta, &
+                    empty = (.not. (smagorinsky .and. vertical_smagorinsky)) ))
 
     end if
 

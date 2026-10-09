@@ -22,8 +22,14 @@ contains
   !> @param[in]     derived_fields Group of derived fields
   !> @param[in]     rho            Density
   !> @param[in]     dt             The model timestep length
+  !> @param[in,out] con_tracer_all_outer  Optional conservative tracers to be
+  !>                                      mixed by Smagorinsky
+  !> @param[in,out] con_tracer_last_outer Optional conservative tracers to be
+  !>                                      mixed by Smagorinsky
   subroutine mixing_alg(mr, theta, u, derived_fields, &
-                        rho, dt)
+                        rho, dt,                      &
+                        con_tracer_all_outer,         &
+                        con_tracer_last_outer)
 
     use constants_mod,                 only: i_def,r_def
     use log_mod,                       only: log_event,         &
@@ -52,6 +58,10 @@ contains
     ! Timestepping information
     real( r_def ),      intent(in) :: dt
 
+    ! Tracers, only mixed when present
+    type( field_collection_type ), optional, intent(inout) :: con_tracer_all_outer
+    type( field_collection_type ), optional, intent(inout) :: con_tracer_last_outer
+
     ! Increment fields
     type( field_type ) :: du, dtheta
 
@@ -68,7 +78,8 @@ contains
       call du%initialise( u%get_function_space() )
       call invoke( setval_c(dtheta, 0.0_r_def), &
                    setval_c(du, 0.0_r_def) )
-      call smagorinsky_alg(dtheta, du, mr, theta, u, derived_fields, rho, dt)
+      call smagorinsky_alg(dtheta, du, mr, theta, u, derived_fields, rho, dt, &
+                           con_tracer_all_outer, con_tracer_last_outer)
       call invoke( inc_X_plus_Y( theta, dtheta ), &
                    inc_X_plus_Y( u,     du ) )
 

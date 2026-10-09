@@ -1,0 +1,61 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Tests for the Lilly (1962) eddy diffusivity used by vertical
+!>        Smagorinsky mixing. The parcel-test N**2 is not tested here because
+!>        qsaturation depends on branch-specific configuration.
+module vert_smag_coeff_kernel_mod_test
+
+  use constants_mod,              only : r_def
+  use vert_smag_coeff_kernel_mod, only : lilly_viscosity
+  use funit
+
+  implicit none
+
+  private
+  public :: test_neutral, test_stable_cutoff, test_unstable
+
+  real(r_def), parameter :: lambda_sq = 400.0_r_def**2
+  real(r_def), parameter :: shear     = 0.01_r_def
+  real(r_def), parameter :: prandtl   = 1.0_r_def/3.0_r_def
+  ! Values are O(1e3) m2/s, so this is a relative tolerance of ~1e-9
+  real(r_def), parameter :: tol       = 1.0e-6_r_def
+
+contains
+
+  !> N**2 = 0 recovers the classical Smagorinsky value lambda**2 * S.
+  @test
+  subroutine test_neutral()
+    implicit none
+    @assertEqual(lambda_sq*shear, lilly_viscosity(lambda_sq, shear, 0.0_r_def, prandtl), tol)
+  end subroutine test_neutral
+
+  !> Mixing stops once the Richardson number N**2/S**2 reaches Pr_t.
+  @test
+  subroutine test_stable_cutoff()
+    implicit none
+    real(r_def) :: n_sq
+
+    ! Just past the cutoff (exactly at it, rounding can leave a tiny value)
+    n_sq = 1.001_r_def * prandtl * shear**2
+    @assertEqual(0.0_r_def, lilly_viscosity(lambda_sq, shear, n_sq, prandtl), 0.0_r_def)
+    n_sq = 2.0_r_def * prandtl * shear**2
+    @assertEqual(0.0_r_def, lilly_viscosity(lambda_sq, shear, n_sq, prandtl), tol)
+    ! Halfway to the cutoff: lambda**2 * S * sqrt(1 - 0.5)
+    n_sq = 0.5_r_def * prandtl * shear**2
+    @assertEqual(lambda_sq*shear*sqrt(0.5_r_def), lilly_viscosity(lambda_sq, shear, n_sq, prandtl), tol)
+  end subroutine test_stable_cutoff
+
+  !> Unstable air mixes more than neutral air, even with no shear.
+  @test
+  subroutine test_unstable()
+    implicit none
+    real(r_def), parameter :: n_sq = -1.0e-4_r_def
+
+    @assertTrue(lilly_viscosity(lambda_sq, shear, n_sq, prandtl) > lambda_sq*shear)
+    @assertEqual(lambda_sq*sqrt(-n_sq/prandtl), lilly_viscosity(lambda_sq, 0.0_r_def, n_sq, prandtl), tol)
+  end subroutine test_unstable
+
+end module vert_smag_coeff_kernel_mod_test

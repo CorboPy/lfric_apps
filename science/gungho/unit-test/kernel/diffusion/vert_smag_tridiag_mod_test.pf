@@ -1,0 +1,99 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Tests for the implicit column diffusion solver used by vertical
+!>        Smagorinsky mixing.
+module vert_smag_tridiag_mod_test
+
+  use constants_mod,         only : i_def, r_def
+  use vert_smag_tridiag_mod, only : implicit_column_diffusion
+  use funit
+
+  implicit none
+
+  private
+  public :: test_two_box_exact, test_conserves_mass, test_no_new_extrema, &
+            test_large_dt_gives_mean, test_zero_conductance
+
+  integer(i_def), parameter :: n = 5
+  real(r_def),    parameter :: mass(n) = (/ 1.0_r_def, 2.0_r_def, 0.5_r_def, &
+                                            3.0_r_def, 1.5_r_def /)
+  real(r_def),    parameter :: cond(n-1) = (/ 0.3_r_def, 2.0_r_def, &
+                                              0.1_r_def, 5.0_r_def /)
+  real(r_def),    parameter :: x_init(n) = (/ 1.0_r_def, 0.0_r_def, 4.0_r_def, &
+                                              -2.0_r_def, 3.0_r_def /)
+
+contains
+
+  !> Two equal boxes, one step: x1 = 2/3 and x2 = 1/3 by hand.
+  @test
+  subroutine test_two_box_exact()
+    implicit none
+    real(r_def) :: x(2)
+    real(r_def), parameter :: tol = 1.0e-14_r_def
+
+    x = (/ 1.0_r_def, 0.0_r_def /)
+    call implicit_column_diffusion(2_i_def, 1.0_r_def,                  &
+                                   (/ 1.0_r_def, 1.0_r_def /),          &
+                                   (/ 1.0_r_def /), x)
+    @assertEqual(2.0_r_def/3.0_r_def, x(1), tol)
+    @assertEqual(1.0_r_def/3.0_r_def, x(2), tol)
+  end subroutine test_two_box_exact
+
+  !> The mass-weighted total is unchanged with uneven masses and conductances.
+  @test
+  subroutine test_conserves_mass()
+    implicit none
+    real(r_def) :: x(n)
+    real(r_def), parameter :: tol = 1.0e-12_r_def
+
+    x = x_init
+    call implicit_column_diffusion(n, 10.0_r_def, mass, cond, x)
+    @assertEqual(sum(mass*x_init), sum(mass*x), tol)
+  end subroutine test_conserves_mass
+
+  !> Diffusion only smooths, so the new values stay within the old range.
+  @test
+  subroutine test_no_new_extrema()
+    implicit none
+    real(r_def) :: x(n)
+
+    x = x_init
+    call implicit_column_diffusion(n, 10.0_r_def, mass, cond, x)
+    @assertTrue(minval(x) >= minval(x_init))
+    @assertTrue(maxval(x) <= maxval(x_init))
+  end subroutine test_no_new_extrema
+
+  !> A very long step is still stable and relaxes to the mass-weighted mean.
+  @test
+  subroutine test_large_dt_gives_mean()
+    implicit none
+    real(r_def) :: x(n)
+    real(r_def) :: x_mean
+    integer(i_def) :: i
+    real(r_def), parameter :: tol = 1.0e-5_r_def
+
+    x = x_init
+    x_mean = sum(mass*x_init) / sum(mass)
+    call implicit_column_diffusion(n, 1.0e9_r_def, mass, cond, x)
+    do i = 1, n
+      @assertEqual(x_mean, x(i), tol)
+    end do
+  end subroutine test_large_dt_gives_mean
+
+  !> With no conductance nothing moves.
+  @test
+  subroutine test_zero_conductance()
+    implicit none
+    real(r_def) :: x(n)
+    real(r_def) :: zero_cond(n-1)
+
+    x = x_init
+    zero_cond = 0.0_r_def
+    call implicit_column_diffusion(n, 10.0_r_def, mass, zero_cond, x)
+    @assertEqual(x_init, x, 0.0_r_def)
+  end subroutine test_zero_conductance
+
+end module vert_smag_tridiag_mod_test
