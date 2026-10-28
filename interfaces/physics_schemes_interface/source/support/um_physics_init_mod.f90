@@ -177,7 +177,7 @@ module um_physics_init_mod
                                         mix_factor_in => mix_factor, &
                                         leonard_term
 
-  use physics_config_mod,        only : lowest_level, lowest_level_flux
+  use physics_config_mod,        only : lowest_level, lowest_level_constant
 
   use radiation_config_mod,      only : topography, topography_horizon
 
@@ -628,10 +628,11 @@ contains
               'convection=none'
           call log_event( log_scratch_space, LOG_LEVEL_ERROR )
         end if
-        if ( lowest_level == lowest_level_flux ) then
+        ! Zero surface flux implies zero gradient below level 1
+        if ( lowest_level /= lowest_level_constant ) then
           write( log_scratch_space, '(A)' )                                 &
-              'UM boundary layer without Jules surface cannot use '//       &
-              'lowest_level=flux'
+              'UM boundary layer without Jules surface requires '//         &
+              'lowest_level=constant'
           call log_event( log_scratch_space, LOG_LEVEL_ERROR )
         end if
         write( log_scratch_space, '(A)' )                                   &
