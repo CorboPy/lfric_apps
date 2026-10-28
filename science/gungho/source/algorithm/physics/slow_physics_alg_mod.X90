@@ -117,6 +117,7 @@ module slow_physics_alg_mod
   use map_drag_incs_alg_mod,     only: map_drag_incs_alg
   use bl_exp_alg_mod,            only: bl_exp_alg
   use bl_imp_alg_mod,            only: bl_imp_alg
+  use bl_surface_none_alg_mod,   only: bl_surface_none_alg
   use conv_ll_alg_mod,           only: conv_ll_alg
   use conv_gr_alg_mod,           only: conv_gr_alg
   use jules_exp_alg_mod,         only: jules_exp_alg
@@ -841,13 +842,20 @@ contains
     ! UM explicit boundary layer and Jules surface schemes
     !--------------------------------------------------------------------
     if (boundary_layer == boundary_layer_um ) then
-      call jules_exp_alg(modeldb, theta, mr_n,                               &
-                         derived_fields, radiation_fields,                   &
-                         orography_fields,                                   &
-                         turbulence_fields, convection_fields, cloud_fields, &
-                         surface_fields, soil_fields, snow_fields,           &
-                         aerosol_fields, recip_l_mo_sea, rhostar,            &
-                         t1_sd_2d, q1_sd_2d)
+      if (surface == surface_jules) then
+        call jules_exp_alg(modeldb, theta, mr_n,                             &
+                           derived_fields, radiation_fields,                 &
+                           orography_fields,                                 &
+                           turbulence_fields, convection_fields,             &
+                           cloud_fields, surface_fields, soil_fields,        &
+                           snow_fields, aerosol_fields, recip_l_mo_sea,      &
+                           rhostar, t1_sd_2d, q1_sd_2d)
+      else
+        ! No surface scheme: free-slip, zero-flux lower boundary
+        call bl_surface_none_alg(derived_fields, turbulence_fields,          &
+                                 surface_fields, recip_l_mo_sea, rhostar,    &
+                                 t1_sd_2d, q1_sd_2d)
+      end if
       call bl_exp_alg(theta, rho, exner, mr_n,                            &
                       derived_fields, radiation_fields,                   &
                       microphysics_fields, dmr_mphys, orography_fields,   &

@@ -12,6 +12,8 @@ module bl_imp_diags_mod
   use bl_extra_diags_kernel_mod, only: bl_extra_diags_kernel_type
   use physics_mappings_alg_mod,  only: map_physics_winds
   use timing_mod,                only: start_timing, stop_timing, tik, LPROF
+  use log_mod,                   only: log_event, LOG_LEVEL_WARNING
+  use section_choice_config_mod, only: surface, surface_jules
 
   use initialise_diagnostics_mod, only : init_diag => init_diagnostic_field, &
                                          samp_diag => diagnostic_to_be_sampled
@@ -282,6 +284,7 @@ contains
     type( field_type ) :: pseudotaux, pseudotauy
 
     logical( l_def ) :: ignore
+    logical( l_def ) :: extra_diags_requested
     integer( tik )   :: id
 
     if ( LPROF ) call start_timing( id, 'diags.bl_imp' )
@@ -408,11 +411,20 @@ contains
       ignore = init_diag(visibility_no_precip, 'surface__visibility_no_precip', activate=.true.)
     end if
 
-    if ( wind_gust_flag .or. scale_dep_wind_gust_flag .or.                     &
+    extra_diags_requested = wind_gust_flag .or. scale_dep_wind_gust_flag .or.  &
          vis_no_precip_flag .or. vis_with_precip_flag .or.                     &
          fog_fraction_flag .or. fog_fraction_ssi_flag .or.                     &
          fog_fraction_land_flag .or. vis_prob_5km_flag .or. dew_point_flag     &
-         .or. dew_point_ssi_flag .or. dew_point_land_flag ) then
+         .or. dew_point_ssi_flag .or. dew_point_land_flag
+
+    ! These diagnostics use the 1.5m fields, which only Jules calculates
+    if ( extra_diags_requested .and. surface /= surface_jules ) then
+      call log_event( 'Gust, visibility, fog and dew point diagnostics '//    &
+                      'need the Jules surface scheme: not calculated',         &
+                      LOG_LEVEL_WARNING )
+    end if
+
+    if ( extra_diags_requested .and. surface == surface_jules ) then
 
       ! Calculate various extra diagnostics
       call invoke( bl_extra_diags_kernel_type( rho_in_w3, wetrho_in_w3,        &

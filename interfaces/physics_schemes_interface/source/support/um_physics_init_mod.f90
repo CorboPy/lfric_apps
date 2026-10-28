@@ -177,6 +177,8 @@ module um_physics_init_mod
                                         mix_factor_in => mix_factor, &
                                         leonard_term
 
+  use physics_config_mod,        only : lowest_level, lowest_level_flux
+
   use radiation_config_mod,      only : topography, topography_horizon
 
   use section_choice_config_mod, only : aerosol,           &
@@ -610,9 +612,32 @@ contains
     if ( boundary_layer == boundary_layer_um ) then
 
       if ( surface /= surface_jules ) then
+        ! Without a surface scheme the BL runs with a free-slip, zero-flux
+        ! lower boundary. Only 3D Smagorinsky mixing is supported, as the
+        ! other mixing options and the UM convection schemes need surface
+        ! fluxes and friction velocity.
+        if ( .not. ( smagorinsky .and. mixing_method == method_3d_smag ) ) then
+          write( log_scratch_space, '(A)' )                                 &
+              'UM boundary layer without Jules surface requires '//         &
+              'smagorinsky=.true. and method=3d_smag'
+          call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+        end if
+        if ( convection == convection_um ) then
+          write( log_scratch_space, '(A)' )                                 &
+              'UM boundary layer without Jules surface requires '//         &
+              'convection=none'
+          call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+        end if
+        if ( lowest_level == lowest_level_flux ) then
+          write( log_scratch_space, '(A)' )                                 &
+              'UM boundary layer without Jules surface cannot use '//       &
+              'lowest_level=flux'
+          call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+        end if
         write( log_scratch_space, '(A)' )                                   &
-            'Jules surface is required for UM boundary layer - please switch on'
-        call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+            'UM boundary layer running without a surface scheme: '//        &
+            'free-slip, zero-flux lower boundary'
+        call log_event( log_scratch_space, LOG_LEVEL_INFO )
       end if
 
       a_ent_shr_nml = real(a_ent_shr, r_bl)

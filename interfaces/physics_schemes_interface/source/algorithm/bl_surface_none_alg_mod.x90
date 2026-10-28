@@ -1,0 +1,111 @@
+!-------------------------------------------------------------------------------
+! (c) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-------------------------------------------------------------------------------
+!> @brief Lower boundary for the UM boundary layer when no surface scheme is used
+
+module bl_surface_none_alg_mod
+
+  use field_mod,            only: field_type
+  use integer_field_mod,    only: integer_field_type
+  use field_collection_mod, only: field_collection_type
+
+  use timing_mod,           only: start_timing, stop_timing, &
+                                  tik, LPROF
+  use log_mod,              only: log_event, LOG_LEVEL_DEBUG
+
+  implicit none
+
+  private
+  public bl_surface_none_alg
+
+contains
+
+  !>@brief Set a free-slip, zero-flux lower boundary for the UM boundary layer
+  !>@details Replaces the explicit JULES scheme when surface='none'. Sets the
+  !>         surface values that the explicit boundary layer would otherwise
+  !>         take from JULES: zero surface exchange coefficients, fluxes and
+  !>         friction velocity, with the blending height at the lowest level.
+  !>@param[in]     derived_fields    Group of derived fields
+  !>@param[in,out] turbulence_fields Fields for turbulence scheme
+  !>@param[in,out] surface_fields    Fields for surface scheme
+  !>@param[in,out] recip_l_mo_sea    Inverse Obukhov length over sea only
+  !>@param[in,out] rhostar           Surface density
+  !>@param[in,out] t1_sd_2d          StDev of level 1 temperature
+  !>@param[in,out] q1_sd_2d          StDev of level 1 humidity
+  subroutine bl_surface_none_alg(derived_fields, turbulence_fields,          &
+                                 surface_fields, recip_l_mo_sea, rhostar,    &
+                                 t1_sd_2d, q1_sd_2d)
+
+    use bl_surface_none_kernel_mod, only: bl_surface_none_kernel_type
+
+    implicit none
+
+    type( field_collection_type ), intent(in)    :: derived_fields
+    type( field_collection_type ), intent(in)    :: turbulence_fields
+    type( field_collection_type ), intent(in)    :: surface_fields
+
+    type( field_type ), intent( inout )     :: recip_l_mo_sea
+    type( field_type ), intent( inout )     :: rhostar
+    type( field_type ), intent( inout )     :: t1_sd_2d
+    type( field_type ), intent( inout )     :: q1_sd_2d
+
+    ! Temporary fields unpacked fields from collections
+    type( field_type ), pointer :: wetrho_in_w3
+
+    type( field_type ), pointer :: zh
+    type( integer_field_type ), pointer :: blend_height_tq
+    type( field_type ), pointer :: rhokm_bl
+    type( field_type ), pointer :: rhokh_bl
+    type( field_type ), pointer :: moist_flux_bl
+    type( field_type ), pointer :: heat_flux_bl
+    type( field_type ), pointer :: gradrinr
+
+    type( field_type ), pointer :: surf_interp
+    type( field_type ), pointer :: z0m_eff
+    type( field_type ), pointer :: ustar
+
+    integer(tik) :: id
+
+    if ( LPROF ) call start_timing( id, 'bl.surface_none' )
+
+    call log_event( 'slow_physics: Setting BL lower boundary with no surface', &
+                    LOG_LEVEL_DEBUG )
+
+    ! Unpack derived fields
+    call derived_fields%get_field('wetrho_in_w3', wetrho_in_w3)
+
+    ! Unpack turbulence fields
+    call turbulence_fields%get_field('zh', zh)
+    call turbulence_fields%get_field('blend_height_tq', blend_height_tq)
+    call turbulence_fields%get_field('rhokm_bl', rhokm_bl)
+    call turbulence_fields%get_field('rhokh_bl', rhokh_bl)
+    call turbulence_fields%get_field('moist_flux_bl', moist_flux_bl)
+    call turbulence_fields%get_field('heat_flux_bl', heat_flux_bl)
+    call turbulence_fields%get_field('gradrinr', gradrinr)
+
+    ! Surface fields
+    call surface_fields%get_field('surf_interp', surf_interp)
+    call surface_fields%get_field('z0m_eff', z0m_eff)
+    call surface_fields%get_field('ustar', ustar)
+
+    call zh%copy_field_properties(recip_l_mo_sea)
+    call zh%copy_field_properties(rhostar)
+    call zh%copy_field_properties(t1_sd_2d)
+    call zh%copy_field_properties(q1_sd_2d)
+
+    call invoke( bl_surface_none_kernel_type( wetrho_in_w3,                   &
+                                              rhokm_bl, rhokh_bl,             &
+                                              moist_flux_bl, heat_flux_bl,    &
+                                              gradrinr, surf_interp,          &
+                                              blend_height_tq, z0m_eff,       &
+                                              ustar, rhostar,                 &
+                                              recip_l_mo_sea,                 &
+                                              t1_sd_2d, q1_sd_2d ) )
+
+    if ( LPROF ) call stop_timing( id, 'bl.surface_none' )
+
+  end subroutine bl_surface_none_alg
+
+end module bl_surface_none_alg_mod

@@ -378,7 +378,12 @@ contains
           do k = 1, bl_levels-1
             tau(map_w2(df) + k) = tau_loc(k)*dA(map_w2(df))
           end do
-          pseudotau(map_w2_2d(df)) = tau(map_w2(df)) / cd10m_neut
+          ! cd10m_neut is zero when there is no surface scheme
+          if (cd10m_neut > 0.0_r_bl) then
+            pseudotau(map_w2_2d(df)) = tau(map_w2(df)) / cd10m_neut
+          else
+            pseudotau(map_w2_2d(df)) = 0.0_r_def
+          end if
         end if
 
         ! final increment calculation

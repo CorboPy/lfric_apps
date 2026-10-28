@@ -33,6 +33,7 @@ module bl_imp_alg_mod
   use convection_config_mod,         only: cv_scheme, cv_scheme_comorph, &
        cv_scheme_gregory_rowntree
   use blayer_config_mod,             only: fric_heating
+  use section_choice_config_mod,     only: surface, surface_jules
   use derived_config_mod,            only: l_esm_couple
   use esm_couple_config_mod,         only: l_esm_couple_test
   use aerosol_config_mod,            only: glomap_mode,               &
@@ -425,14 +426,19 @@ contains
                                       bl_type_ind, rhokh, fqw, ftl, dqw, dtl,  &
                                       dqw_nt, dtl_nt, qw, tl, ct_ctq,          &
                                       dqw1, dtl1, ct_ctq1 ) )
-      call jules_imp_alg( mr, surf_heat_flux, canopy_evap, water_extraction,   &
-                          lake_evap, derived_fields, radiation_fields,         &
-                          turbulence_fields, cloud_fields, surface_fields,     &
-                          soil_fields, snow_fields, outer, model_clock, loop,  &
-                          qw, tl, dqw1, dtl1, ct_ctq1, ftl, fqw, rhokh,        &
-                          mr_ice, latent_heat, t1p5m, q1p5m, qcl1p5m,          &
-                          t1p5m_ssi, q1p5m_ssi, qcl1p5m_ssi, t1p5m_land,       &
-                          q1p5m_land, qcl1p5m_land)
+      ! Without a surface scheme the surface fluxes in ftl and fqw stay
+      ! at the zero values set by bl_surface_none_alg
+      if (surface == surface_jules) then
+        call jules_imp_alg( mr, surf_heat_flux, canopy_evap,                 &
+                            water_extraction, lake_evap, derived_fields,     &
+                            radiation_fields, turbulence_fields,             &
+                            cloud_fields, surface_fields, soil_fields,       &
+                            snow_fields, outer, model_clock, loop,           &
+                            qw, tl, dqw1, dtl1, ct_ctq1, ftl, fqw, rhokh,    &
+                            mr_ice, latent_heat, t1p5m, q1p5m, qcl1p5m,      &
+                            t1p5m_ssi, q1p5m_ssi, qcl1p5m_ssi, t1p5m_land,   &
+                            q1p5m_land, qcl1p5m_land)
+      end if
       call invoke(bl_imp2_kernel_type( outer, loop, wetrho_in_wth, exner,      &
                                        exner_in_wth, theta_star, height_w3,    &
                                        height_wth, ntml, cumulus, dtheta_bl,   &
