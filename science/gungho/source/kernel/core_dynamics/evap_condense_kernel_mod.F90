@@ -147,7 +147,7 @@ contains
     real(kind=r_def)                         :: Lv(0:nlayers),               &
       Rm(0:nlayers), cpm(0:nlayers), cvm(0:nlayers)                      
     real(kind=r_def)                         :: rain_carry, rain_available,    &
-      fall_fraction, rain_out ! rainout variables
+      fall_fraction, rain_out, layer_mass ! rainout variables
     real(kind=r_def)                         :: cvd, cvv, recip_kappa
     real(kind=r_def), parameter              :: ref_temperature = 273.15_r_def
     real(kind=r_def), parameter              :: cl_threshold = 0.001_r_def      ! cloud threshold
@@ -227,12 +227,20 @@ contains
     ! Constant-speed rainout using a simple top-down reservoir model.
     ! Rain is passed from the layer above to the layer below with a fixed
     ! fall speed, using an exponential limiter to keep the update stable.
-    rain_carry = 0.0_r_def  ! rain falling into current layer from layer above
-                            ! starts at 0 for the top layer
+    ! The rain passed between layers is carried as a mass per unit area
+    ! (kg m-2), not a mixing ratio, so that it is diluted into the denser
+    ! (and possibly thinner) layer below and the column rain mass is conserved.
+    rain_carry = 0.0_r_def  ! rain mass falling into current layer from layer
+                            ! above, starts at 0 for the top layer
     do k = nlayers, 0, -1
 
+      ! dry-air mass per unit area of this layer: rho_d * dz, with
+      ! rho_d = p / ((Rd + mr_v*Rv) * T) from the moist equation of state
+      layer_mass = pressure(k) * dz_wtheta(map_wtheta(1) + k) /                &
+          ((Rd + mr_v_n(map_wtheta(1) + k) * Rv) * temperature(k))
+
       ! add rain carried from layer above to the rain available in this layer
-      rain_available = mr_r_np1(map_wtheta(1) + k) + rain_carry   
+      rain_available = mr_r_np1(map_wtheta(1) + k) + rain_carry / layer_mass
 
       ! compute fraction of rain that falls out of this layer in time dt
       fall_fraction = 1.0_r_def - exp(-rain_fall_speed * dt /                  &
@@ -245,8 +253,10 @@ contains
       rain_out = rain_available * fall_fraction
       ! update the rain mixing ratio
       mr_r_np2(map_wtheta(1) + k) = rain_available - rain_out
-      rain_carry = rain_out
+      ! pass the mass of rain leaving this layer to the layer below
+      rain_carry = rain_out * layer_mass
     end do
+    ! rain_carry now holds the rain mass reaching the surface this step
 
 
     !---------------------------------------------------------------------------
