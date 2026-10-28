@@ -173,23 +173,34 @@ contains
       end if
     end do
 
-    exner = exner_in_wth(map_wth(1))
+    ! The surface forcing is applied at the first theta level above the
+    ! surface. This is the lowest level that the UM boundary layer mixes;
+    ! the boundary layer overwrites level 0 (see lowest_level).
+    exner = exner_in_wth(map_wth(1) + 1)
 
     if (theta_surface_forcing == theta_surface_forcing_fixed) then
       ! Hold the lowest layer's absolute temperature fixed at a prescribed
       ! value by overwriting its increment with whatever is needed to reach
       ! that target in one step, replacing the tropospheric cooling
       ! contribution computed for this layer above.
-      dtheta(map_wth(1)) = fixed_surface_temperature / exner - theta(map_wth(1))
-      dtemp_dt_trop(map_wth(1)) = 0.0_r_def
+      dtheta(map_wth(1) + 1) = fixed_surface_temperature / exner             &
+                               - theta(map_wth(1) + 1)
+      dtemp_dt_trop(map_wth(1) + 1) = 0.0_r_def
     else if (theta_surface_forcing == theta_surface_forcing_flux) then
-      dtheta(map_wth(1)) = dtheta(map_wth(1)) + (sensible_heat_flux * dt) / &
-          (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) * exner)
+      dtheta(map_wth(1) + 1) = dtheta(map_wth(1) + 1)                        &
+          + (sensible_heat_flux * dt) / (wetrho_in_wth(map_wth(1) + 1)       &
+          * cpm(1) * dz_wtheta(map_wth(1) + 1) * exner)
     else
       write(log_scratch_space, '(A)')                                      &
           'idealised_radiation_kernel_mod: Unknown theta_surface_forcing option'
       call log_event(log_scratch_space, LOG_LEVEL_ERROR)
     end if
+
+    ! Keep level 0 equal to level 1, as lowest_level='constant' does, so
+    ! that it cannot drift when no boundary layer scheme overwrites it
+    dtheta(map_wth(1)) = theta(map_wth(1) + 1) + dtheta(map_wth(1) + 1)     &
+                         - theta(map_wth(1))
+    dtemp_dt_trop(map_wth(1)) = 0.0_r_def
 
   end subroutine idealised_radiation_code
 

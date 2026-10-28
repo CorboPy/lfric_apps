@@ -6,7 +6,9 @@
 !> @brief Apply an idealised surface evaporative moisture flux.
 !> @details For a Cartesian convection-resolving setup, this kernel applies
 !>          a prescribed surface heat flux into evaporation as a water
-!>          vapour mixing ratio tendency in the lowest model layer.
+!>          vapour mixing ratio tendency in the lowest model layer, i.e. at
+!>          the first theta level above the surface. Level 0 is kept equal
+!>          to level 1.
 module idealised_evaporation_kernel_mod
 
   use argument_mod,    only: arg_type,              &
@@ -86,22 +88,33 @@ contains
       dmv_forcing(map_wth(1) + k) = 0.0_r_def
     end do
 
+    ! The surface forcing is applied at the first theta level above the
+    ! surface. This is the lowest level that the UM boundary layer mixes;
+    ! the boundary layer overwrites level 0 (see lowest_level).
     if (vapour_surface_forcing == vapour_surface_forcing_fixed) then
       ! Hold the lowest layer's vapour mixing ratio fixed at a prescribed
       ! value by overwriting its increment with whatever is needed to reach
       ! that target in one step.
-      dmv_forcing(map_wth(1)) = fixed_surface_vapour_mixing_ratio - mr_v_n(map_wth(1))
+      dmv_forcing(map_wth(1) + 1) = fixed_surface_vapour_mixing_ratio        &
+                                    - mr_v_n(map_wth(1) + 1)
     else if (vapour_surface_forcing == vapour_surface_forcing_flux) then
       ! Apply a prescribed surface heat flux into evaporation as a water
       ! vapour mixing ratio tendency in the lowest model layer.
-      dmv_forcing(map_wth(1)) = dmv_forcing(map_wth(1)) + (evaporative_heat_flux * dt) / &
-          (latent_heat_h2o_condensation * wetrho_in_wth(map_wth(1)) * dz_wtheta(map_wth(1)))
+      dmv_forcing(map_wth(1) + 1) = dmv_forcing(map_wth(1) + 1)              &
+          + (evaporative_heat_flux * dt) / (latent_heat_h2o_condensation     &
+          * wetrho_in_wth(map_wth(1) + 1) * dz_wtheta(map_wth(1) + 1))
       ! ToDo: temperature dependence of latent heat of condensation.
     else
       write(log_scratch_space, '(A)')                                      &
           'idealised_evaporation_kernel_mod: Unknown vapour_surface_forcing option'
       call log_event(log_scratch_space, LOG_LEVEL_ERROR)
     end if
+
+    ! Keep level 0 equal to level 1, as lowest_level='constant' does, so
+    ! that it cannot drift when no boundary layer scheme overwrites it
+    dmv_forcing(map_wth(1)) = mr_v_n(map_wth(1) + 1)                         &
+                              + dmv_forcing(map_wth(1) + 1)                  &
+                              - mr_v_n(map_wth(1))
 
   end subroutine idealised_evaporation_code
 

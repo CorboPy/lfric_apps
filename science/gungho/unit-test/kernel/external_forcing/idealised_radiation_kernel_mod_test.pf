@@ -126,6 +126,22 @@ contains
   end subroutine background_dtheta
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !> Level 0 is kept equal to level 1 after the increment is applied, and
+  !> has no tropospheric cooling of its own.
+  subroutine copy_level_one_to_zero(answer, rate)
+
+    implicit none
+
+    real(kind=r_def), intent(inout) :: answer(undf_wth)
+    real(kind=r_def), intent(inout) :: rate(undf_wth)
+
+    answer(map_wth(1)) = theta(map_wth(1) + 1) + answer(map_wth(1) + 1)          &
+                         - theta(map_wth(1))
+    rate(map_wth(1)) = 0.0_r_def
+
+  end subroutine copy_level_one_to_zero
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !> Assert that a kernel output column matches the expected column.
   subroutine assert_column(expected, actual)
 
@@ -150,8 +166,9 @@ contains
   end subroutine assert_column
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !> With the 'flux' surface treatment, the surface layer increment adds a
-  !> prescribed sensible heat flux term on top of the tropospheric cooling.
+  !> With the 'flux' surface treatment, the increment at the first level
+  !> above the surface adds a prescribed sensible heat flux term on top of
+  !> the tropospheric cooling.
   @test
   subroutine test_flux_forcing()
 
@@ -183,9 +200,10 @@ contains
 
     call background_dtheta(dt, cpm, answer, rate)
 
-    answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /          &
-        (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *              &
-         exner_in_wth(map_wth(1)))
+    answer(map_wth(1) + 1) = answer(map_wth(1) + 1) + (sensible_heat_flux * dt) /  &
+        (wetrho_in_wth(map_wth(1) + 1) * cpm(1) * dz_wtheta(map_wth(1) + 1) *      &
+         exner_in_wth(map_wth(1) + 1))
+    call copy_level_one_to_zero(answer, rate)
 
     call assert_column(answer, dtheta)
     call assert_column(rate, dtemp_dt_trop)
@@ -193,9 +211,10 @@ contains
   end subroutine test_flux_forcing
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !> With the 'fixed' surface treatment, the surface layer increment is
-  !> overwritten so that the resulting absolute temperature equals the
-  !> prescribed target exactly, regardless of the tropospheric cooling term.
+  !> With the 'fixed' surface treatment, the increment at the first level
+  !> above the surface is overwritten so that the resulting absolute
+  !> temperature equals the prescribed target exactly, regardless of the
+  !> tropospheric cooling term.
   @test
   subroutine test_fixed_forcing()
 
@@ -228,9 +247,11 @@ contains
 
     call background_dtheta(dt, cpm, answer, rate)
 
-    answer(map_wth(1)) = target_temperature / exner_in_wth(map_wth(1)) - theta(map_wth(1))
-    ! The surface cooling is discarded by the fixed treatment
-    rate(map_wth(1)) = 0.0_r_def
+    answer(map_wth(1) + 1) = target_temperature / exner_in_wth(map_wth(1) + 1)    &
+                             - theta(map_wth(1) + 1)
+    ! The cooling at level 1 is discarded by the fixed treatment
+    rate(map_wth(1) + 1) = 0.0_r_def
+    call copy_level_one_to_zero(answer, rate)
 
     call assert_column(answer, dtheta)
     call assert_column(rate, dtemp_dt_trop)
@@ -277,9 +298,11 @@ contains
 
       call background_dtheta(cooling_dts(i), cpm, answer, rate)
 
-      answer(map_wth(1)) = answer(map_wth(1)) + (sensible_heat_flux * dt) /        &
-          (wetrho_in_wth(map_wth(1)) * cpm(0) * dz_wtheta(map_wth(1)) *            &
-           exner_in_wth(map_wth(1)))
+      answer(map_wth(1) + 1) = answer(map_wth(1) + 1) +                          &
+          (sensible_heat_flux * dt) /                                            &
+          (wetrho_in_wth(map_wth(1) + 1) * cpm(1) * dz_wtheta(map_wth(1) + 1) *  &
+           exner_in_wth(map_wth(1) + 1))
+      call copy_level_one_to_zero(answer, rate)
 
       call assert_column(answer, dtheta)
       call assert_column(rate, dtemp_dt_trop)
