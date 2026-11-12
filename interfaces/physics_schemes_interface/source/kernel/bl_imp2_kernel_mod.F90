@@ -277,7 +277,7 @@ contains
     use pc2_constants_mod, only: i_cld_smith, i_cld_pc2,            &
                                  pc2init_logic_smooth, acf_off, i_cld_bimodal
     use planet_constants_mod, only: p_zero, kappa, planet_radius, g => g_bl,   &
-                                    cp => cp_bl, lcrcp
+                                    cp => cp_bl, lcrcp, lsrcp
     use timestep_mod, only: timestep
 
     ! subroutines used
@@ -437,6 +437,8 @@ contains
          f_buoy_m, dissip_mol, fric_heating_inc, z_blyr
 
     real(r_um), parameter :: qcl_max_factor = 0.1_r_um
+
+    real(r_um) :: qcf_total
 
     integer(i_um) :: large_levels
     integer(i_um), parameter :: levels_per_level = 3
@@ -1081,6 +1083,31 @@ contains
           cf_bulk(map_wth(1,i) + 0) = cf_bulk(map_wth(1,i) + 1)
           cf_area(map_wth(1,i) + 0) = cf_area(map_wth(1,i) + 1)
         end do
+
+      else
+
+        ! t_latest and q_latest hold Tl and qw. Without the UM cloud scheme
+        ! nothing repartitions them, so hold the condensate at its input
+        ! value and convert the remainder back to temperature and vapour.
+        ! Otherwise m_v would gain the condensate without m_cl losing it.
+        do k = 1, nlayers
+          do i = 1, seg_len
+            t_latest(i,1,k) = t_latest(i,1,k)                                  &
+                            + lcrcp * m_cl(map_wth(1,i) + k)
+            q_latest(i,1,k) = q_latest(i,1,k) - m_cl(map_wth(1,i) + k)
+          end do
+        end do
+        ! Ice is only included in Tl and qw on boundary layer levels
+        if (.not. l_noice_in_turb) then
+          do k = 1, bl_levels
+            do i = 1, seg_len
+              qcf_total = m_s(map_wth(1,i) + k)
+              if (l_casim) qcf_total = qcf_total + m_ci(map_wth(1,i) + k)
+              t_latest(i,1,k) = t_latest(i,1,k) + lsrcp * qcf_total
+              q_latest(i,1,k) = q_latest(i,1,k) - qcf_total
+            end do
+          end do
+        end if
 
       end if ! cloud_um
 
