@@ -44,6 +44,10 @@ module transport_metadata_mod
     integer(kind=i_def)    :: true_vertical_monotone
     integer(kind=i_def)    :: true_splitting
 
+    ! Whether to apply the dispersion relation correction. This is a per-call
+    ! switch, set by the calling algorithm rather than from the namelist
+    logical(kind=l_def)    :: dispersion_correction = .false._l_def
+
     contains
 
     procedure, public :: get_name
@@ -64,6 +68,8 @@ module transport_metadata_mod
     procedure, public :: get_reversible
     procedure, public :: get_ffsl_splitting
     procedure, public :: get_ffsl_vertical_order
+    procedure, public :: get_dispersion_correction
+    procedure, public :: set_dispersion_correction
     procedure, public :: update_metadata
     procedure, public :: reset_metadata
 
@@ -399,6 +405,37 @@ contains
     ffsl_vertical_order = self%ffsl_vertical_order
 
   end function get_ffsl_vertical_order
+
+  !> @brief Get whether to apply the dispersion relation correction
+  !> @param[in] self     The transport_metadata object
+  !> @return             The dispersion correction switch
+  function get_dispersion_correction(self) result(flag)
+
+    implicit none
+
+    class(transport_metadata_type), intent(in) :: self
+    logical(kind=l_def)                        :: flag
+
+    flag = self%dispersion_correction
+
+  end function get_dispersion_correction
+
+  !> @brief Set whether to apply the dispersion relation correction
+  !> @details This is not set from the namelist and is not changed by
+  !!          update_metadata or reset_metadata, so the caller is responsible
+  !!          for resetting it after use.
+  !> @param[in,out] self     The transport_metadata object
+  !> @param[in]     flag     The dispersion correction switch
+  subroutine set_dispersion_correction(self, flag)
+
+    implicit none
+
+    class(transport_metadata_type), intent(inout) :: self
+    logical(kind=l_def),            intent(in)    :: flag
+
+    self%dispersion_correction = flag
+
+  end subroutine set_dispersion_correction
 
   !> @brief Update the metadata based on the outer loop
   !> @details Updates the metadata options for this outer loop, for instance

@@ -45,6 +45,7 @@ module check_configuration_mod
                                   ffsl_inner_order,                            &
                                   ffsl_outer_order,                            &
                                   dep_pt_stencil_extent,                       &
+                                  moisture_dispersion_correction,              &
                                   substep_transport,                           &
                                   substep_transport_off,                       &
                                   adjust_vhv_wind,                             &
@@ -132,7 +133,9 @@ contains
                                            coord_system_native
     use formulation_config_mod,      only: use_physics,                        &
                                            use_wavedynamics,                   &
-                                           dlayer_on
+                                           dlayer_on,                          &
+                                           moisture_formulation,               &
+                                           moisture_formulation_dry
     use io_config_mod,               only: write_diag,                         &
                                            use_xios_io
     use planet_config_mod,           only: gravity,                            &
@@ -169,6 +172,7 @@ contains
       class(modeldb_type),  intent(in) :: modeldb
 
       logical(kind=l_def) :: any_scheme_mol, any_horz_dep_pts
+      logical(kind=l_def) :: moisture_consistent
       integer(kind=i_def) :: i, dry_field_splitting
 
       call log_event( 'Checking gungho configuration...', LOG_LEVEL_INFO )
@@ -539,6 +543,28 @@ contains
         end if
 
       end do
+
+      ! The moisture dispersion correction only acts on the consistent form,
+      ! so stop rather than silently doing nothing. Outer loops that
+      ! temporarily use the advective form (si_outer_transport or
+      ! make_tracers_advective) are allowed, as for theta_dispersion_correction
+      if ( moisture_dispersion_correction ) then
+        moisture_consistent = .false.
+        do i = 1, profile_size
+          if ( trim(field_names(i)) == 'moisture' .and.                        &
+               equation_form(i) == equation_form_consistent ) then
+            moisture_consistent = .true.
+            exit
+          end if
+        end do
+        if ( moisture_formulation == moisture_formulation_dry .or.             &
+             .not. moisture_consistent ) then
+          write( log_scratch_space, '(A)' )                                    &
+            'moisture_dispersion_correction requires moisture to be ' //       &
+            'transported with the consistent form of the transport equation'
+          call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+        end if
+      end if
 
       ! Check the departure points namelist
       any_horz_dep_pts = check_horz_dep_pts()

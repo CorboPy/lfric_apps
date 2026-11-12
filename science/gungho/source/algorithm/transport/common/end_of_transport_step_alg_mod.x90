@@ -483,6 +483,7 @@ contains
     real(kind=r_tran)                     :: acceptable_min
     real(kind=r_tran)                     :: field_min, field_max
     logical(kind=l_def)                   :: to_compute_field_np1
+    logical(kind=l_def)                   :: apply_dispersion_correction
     integer(tik)                          :: id_iter
 
     ! Extract transport runtime
@@ -511,18 +512,22 @@ contains
     ! Compute consistent dispersion relation correction, if required
     ! ------------------------------------------------------------------------ !
 
-    if (theta_dispersion_correction .and. mr_function_space == Wtheta .and.    &
-        (trim(transport_metadata%get_name()) == 'potential_temperature' .or.   &
-         trim(transport_metadata%get_name()) == 'theta') .and. final_split_step) then
-      ! Theta dispersion correction was calculated in some step.
+    ! The correction applies to theta and, optionally, to the field selected
+    ! through the transport metadata (e.g. water vapour)
+    apply_dispersion_correction = mr_function_space == Wtheta .and.            &
+        ( ( theta_dispersion_correction .and.                                  &
+            ( trim(transport_metadata%get_name()) == 'potential_temperature'   &
+              .or. trim(transport_metadata%get_name()) == 'theta' ) ) .or.     &
+          transport_metadata%get_dispersion_correction() )
+
+    if (apply_dispersion_correction .and. final_split_step) then
+      ! Dispersion correction was calculated in some step.
       ! field_np1 will need recomputing, so set that flag here
       to_compute_field_np1 = .true.
     end if
 
-    if (theta_dispersion_correction .and. mr_function_space == Wtheta .and.    &
-        (flux_function_space == W2 .or. flux_function_space == W2H) .and.      &
-        (trim(transport_metadata%get_name()) == 'potential_temperature' .or.   &
-         trim(transport_metadata%get_name()) == 'theta')) then
+    if (apply_dispersion_correction .and.                                      &
+        (flux_function_space == W2 .or. flux_function_space == W2H)) then
 
       shifted_mesh => mesh_collection%get_mesh(prime_extrusion_mesh, SHIFTED)
       sh_w3_fs => function_space_collection%get_fs(shifted_mesh, 0, 0, W3)

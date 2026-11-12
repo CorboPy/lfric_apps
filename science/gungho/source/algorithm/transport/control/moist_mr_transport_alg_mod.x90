@@ -10,7 +10,8 @@ module moist_mr_transport_alg_mod
   use constants_mod,                  only: i_def, r_def
   use field_mod,                      only: field_type
   use log_mod,                        only: log_event, LOG_LEVEL_ERROR
-  use mr_indices_mod,                 only: nummr
+  use mr_indices_mod,                 only: nummr, imr_v
+  use transport_config_mod,           only: moisture_dispersion_correction
   use transport_enumerated_types_mod, only: equation_form_advective,           &
                                             equation_form_conservative,        &
                                             equation_form_consistent
@@ -68,6 +69,12 @@ contains
 
     do imr = 1, nummr_to_transport
 
+      ! Only apply the dispersion relation correction to water vapour, if
+      ! requested. This only has an effect for the consistent form.
+      call transport_metadata%set_dispersion_correction(                       &
+              moisture_dispersion_correction .and. imr == imr_v                &
+      )
+
       ! ---------------------------------------------------------------------- !
       ! Transport depending on equation
       ! If the equation form is advective:
@@ -118,6 +125,9 @@ contains
       end select
 
     end do
+
+    ! The metadata object persists, so reset the switch for later calls
+    call transport_metadata%set_dispersion_correction(.false.)
 
     ! ------------------------------------------------------------------------ !
     ! Copy non-transported fields over

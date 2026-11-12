@@ -513,6 +513,7 @@ log_space=.true.,.true.,.false.,.false.,.false.,.false.,
 max_vert_cfl_calc='dep_point',
 min_val_method='clipping',
 min_value=0.0,0.0,-99999999.0,0.0,0.0,0.0,
+moisture_dispersion_correction=.false.,
 oned_reconstruction=.false.,
 operators='fv',
 panel_edge_high_order=.true.

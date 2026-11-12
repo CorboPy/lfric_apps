@@ -256,6 +256,7 @@ adjust_vhv_wind=.false.
 min_val_abs_tol=-1e-9
 min_val_max_iterations=10
 min_val_method='iterative'
+moisture_dispersion_correction=.false.
 oned_reconstruction=.true.,
 operators='fv',
 reversible=.false.,.false.,.false.,.false.

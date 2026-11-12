@@ -123,6 +123,7 @@ contains
       substep_transport = substep_transport_off,           &
       theta_variable=theta_variable_dry,                   &
       theta_dispersion_correction  = .false.,              &
+      moisture_dispersion_correction = .false.,            &
       use_density_predictor = .false.,                     &
       cap_density_predictor = 0.001_r_def,                 &
       max_vert_cfl_calc = max_vert_cfl_calc_uniform,       &
