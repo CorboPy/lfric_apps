@@ -438,7 +438,8 @@ contains
 
     real(r_um), parameter :: qcl_max_factor = 0.1_r_um
 
-    real(r_um) :: qcf_total
+    ! Ice removed from qw and added back to Tl when not using the UM cloud scheme
+    real(r_um) :: qcf_restore
 
     integer(i_um) :: large_levels
     integer(i_um), parameter :: levels_per_level = 3
@@ -1101,10 +1102,10 @@ contains
         if (.not. l_noice_in_turb) then
           do k = 1, bl_levels
             do i = 1, seg_len
-              qcf_total = m_s(map_wth(1,i) + k)
-              if (l_casim) qcf_total = qcf_total + m_ci(map_wth(1,i) + k)
-              t_latest(i,1,k) = t_latest(i,1,k) + lsrcp * qcf_total
-              q_latest(i,1,k) = q_latest(i,1,k) - qcf_total
+              qcf_restore = m_s(map_wth(1,i) + k)
+              if (l_casim) qcf_restore = qcf_restore + m_ci(map_wth(1,i) + k)
+              t_latest(i,1,k) = t_latest(i,1,k) + lsrcp * qcf_restore
+              q_latest(i,1,k) = q_latest(i,1,k) - qcf_restore
             end do
           end do
         end if
